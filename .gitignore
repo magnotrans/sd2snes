@@ -121,3 +121,5 @@ cic/supercic/supercic-key.hex
 cic/supercic/supercic-lock.hex
 contrib/*
 docs/*
+verilog/sd2snes_sdd1/ipcore_dir/coregen_lock
+verilog/sd2snes_sdd1/ipcore_dir/dac_buf.cgc
