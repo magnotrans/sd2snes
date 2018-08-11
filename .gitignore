@@ -20,3 +20,9 @@ autoconf.h
 utils/rle
 utils/derle
 *.bit
+verilog/sd2snes_sdd1/ipcore_dir/dac_buf/blk_mem_gen_v7_3_readme.txt
+verilog/sd2snes_sdd1/ipcore_dir/dac_buf/doc/blk_mem_gen_v7_3_vinfo.html
+verilog/sd2snes_sdd1/ipcore_dir/dac_buf/doc/pg058-blk-mem-gen.pdf
+verilog/sd2snes_sdd1/ipcore_dir/dac_buf/example_design/dac_buf_exdes.ucf
+verilog/sd2snes_sdd1/ipcore_dir/dac_buf/simulation/checker.vhd
+verilog/sd2snes_sdd1/_xmsgs/xst.xmsgs
