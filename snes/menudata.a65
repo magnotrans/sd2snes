@@ -1,0 +1,698 @@
+; menu entry structure:
+
+; HEADER SIZE: 4 bytes
+; HEADER:
+; 1 byte   line spacing for menu display
+; 3 bytes  long pointer to menu window title
+
+; ENTRY SIZE: 23 bytes
+; ENTRIES:
+; 1 byte   entry type (see below)
+; 3 bytes  long pointer to menu entry text
+; 3 bytes  long pointer to routine / submenu structure / preset table
+; 1 byte   data type of parameter (see below)
+; 3 bytes  long pointer to parameter value (of data type above)
+; 3 bytes  long pointer to text description of item
+; 3 bytes  long pointer to change-hook function (called whenever the value is changed during selection; no return value)
+; 3 bytes  long pointer to post-hook function (called when the value is set; no return value)
+; 3 bytes  long pointer to isEnabled function (return: c=0: enabled, c=1: disabled)
+
+; entry types:
+; 00  termination
+; 01  function call
+; 02  submenu
+; 03  value setting
+
+; data types:
+; 00  no parameter
+; 01  unsigned char
+; 02  unsigned short
+; 03  string literal (C type string)
+; 04  multiple choice (key-value table - 8-bit key)
+; 05  multiple choice (key-value table - 16-bit key)
+; 06  file select
+; 07  date
+
+; parameter is displayed when data type is not 0
+
+; preset table/value:
+; data types 01,02: two 16-bit values - (min, max)
+; data type     03: one 16-bit value  - max string length
+; data type  04,05: table of tuples of entries
+;                   1. 16-bit setting value (type 04 only uses low byte)
+;                   2. 24-bit pointer to C string of value
+;                   (val=$ffff terminates)
+; data type     06: 3 bytes - long pointer to file path
+;                   1 byte - file type mask
+; data type     07: not used
+
+#include "memmap.i65"
+
+menu_enttab_mm:
+; HEADER
+ .byt  1              ; listsel_step=1
+ .word !text_mainmenu ; window title
+ .byt  ^text_mainmenu ; for this menu
+; ENTRIES
+ .byt  MTYPE_FUNC
+ .word !text_mm_last
+ .byt  ^text_mm_last
+ .word !select_last_file-1
+ .byt  ^select_last_file-1
+ .byt  0
+ .byt  0,0,0
+ .word !mdesc_mm_last
+ .byt  ^mdesc_mm_last
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_FUNC
+ .word !mtext_mm_sysinfo
+ .byt  ^mtext_mm_sysinfo
+ .word !show_sysinfo-1
+ .byt  ^show_sysinfo-1
+ .byt  0
+ .byt  0,0,0
+ .word !mdesc_mm_sysinfo
+ .byt  ^mdesc_mm_sysinfo
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_SUBMENU
+ .word !mtext_mm_cfg
+ .byt  ^mtext_mm_cfg
+ .word !menu_enttab_cfg
+ .byt  ^menu_enttab_cfg
+ .byt  0
+ .byt  0,0,0
+ .word !mdesc_mm_cfg
+ .byt  ^mdesc_mm_cfg
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  0
+
+menu_enttab_cfg:
+; HEADER
+ .byt 1               ; listsel_step=1
+ .word !mtext_mm_cfg
+ .byt ^mtext_mm_cfg
+; ENTRIES
+ ;.byt MTYPE_SUBMENU
+ ;.word !test_mtext_title
+ ;.byt ^test_mtext_title
+ ;.word !menu_enttab_test
+ ;.byt ^menu_enttab_test
+ ;.byt 0
+ ;.byt 0,0,0
+
+ .byt  MTYPE_FUNC
+ .word !mtext_cfg_time
+ .byt  ^mtext_cfg_time
+ .word !rtc_init-1
+ .byt  ^rtc_init
+ .byt  0
+ .byt  0,0,0
+ .word !mdesc_cfg_time
+ .byt  ^mdesc_cfg_time
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_SUBMENU
+ .word !mtext_cfg_bsx
+ .byt  ^mtext_cfg_bsx
+ .word !menu_enttab_bsx
+ .byt  ^menu_enttab_bsx
+ .byt  0
+ .byt  0,0,0
+ .word !mdesc_cfg_bsx
+ .byt  ^mdesc_cfg_bsx
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_SUBMENU
+ .word !mtext_cfg_browser
+ .byt  ^mtext_cfg_browser
+ .word !menu_enttab_browser
+ .byt  ^menu_enttab_browser
+ .byt  0
+ .byt  0,0,0
+ .word !mdesc_cfg_browser
+ .byt  ^mdesc_cfg_browser
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_SUBMENU
+ .word !mtext_cfg_chip
+ .byt  ^mtext_cfg_chip
+ .word !menu_enttab_chip
+ .byt  ^menu_enttab_chip
+ .byt  0
+ .byt  0,0,0
+ .word !mdesc_cfg_chip
+ .byt  ^mdesc_cfg_chip
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_SUBMENU
+ .word !mtext_cfg_ingame
+ .byt  ^mtext_cfg_ingame
+ .word !menu_enttab_ingame
+ .byt  ^menu_enttab_ingame
+ .byt  0
+ .byt  0,0,0
+ .word !mdesc_cfg_ingame
+ .byt  ^mdesc_cfg_ingame
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_SUBMENU
+ .word !mtext_cfg_scic
+ .byt  ^mtext_cfg_scic
+ .word !menu_enttab_scic
+ .byt  ^menu_enttab_scic
+ .byt  0
+ .byt  0,0,0
+ .word !mdesc_cfg_scic
+ .byt  ^mdesc_cfg_scic
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt 0
+
+menu_enttab_bsx:
+; HEADER
+ .byt  1
+ .word !mtext_cfg_bsx
+ .byt  ^mtext_cfg_bsx
+; ENTRIES
+ .byt  MTYPE_VALUE
+ .word !mtext_bsx_timesource
+ .byt  ^mtext_bsx_timesource
+ .word !kv_bsx_timesource
+ .byt  ^kv_bsx_timesource
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_BSX_USE_USERTIME
+ .byt  ^CFG_BSX_USE_USERTIME
+ .word !mdesc_bsx_timesource
+ .byt  ^mdesc_bsx_timesource
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_VALUE
+ .word !mtext_bsx_time
+ .byt  ^mtext_bsx_time
+ .word 0
+ .byt  0
+ .byt  OPTTYPE_TIME
+ .word !CFG_BSX_TIME
+ .byt  ^CFG_BSX_TIME
+ .word !mdesc_bsx_time
+ .byt  ^mdesc_bsx_time
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt 0
+
+menu_enttab_browser:
+; HEADER
+ .byt  1
+ .word !mtext_cfg_browser
+ .byt  ^mtext_cfg_browser
+; ENTRIES
+ .byt  MTYPE_VALUE
+ .word !mtext_browser_sort
+ .byt  ^mtext_browser_sort
+ .word !kv_yesno
+ .byt  ^kv_yesno
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_SORT_DIRECTORIES
+ .byt  ^CFG_SORT_DIRECTORIES
+ .word !mdesc_browser_sort
+ .byt  ^mdesc_browser_sort
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_VALUE
+ .word !mtext_browser_hide_ext
+ .byt  ^mtext_browser_hide_ext
+ .word !kv_yesno
+ .byt  ^kv_yesno
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_HIDE_EXTENSIONS
+ .byt  ^CFG_HIDE_EXTENSIONS
+ .word !mdesc_browser_hide_ext
+ .byt  ^mdesc_browser_hide_ext
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_VALUE
+ .word !mtext_browser_screensaver
+ .byt  ^mtext_browser_screensaver
+ .word !kv_onoff
+ .byt  ^kv_onoff
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_ENABLE_SCREENSAVER
+ .byt  ^CFG_ENABLE_SCREENSAVER
+ .word !mdesc_browser_screensaver
+ .byt  ^mdesc_browser_screensaver
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+; .byt  MTYPE_VALUE
+; .word !mtext_browser_screensaver_timeout
+; .byt  ^mtext_browser_screensaver_timeout
+; .word !kv_screensaver_timeout
+; .byt  ^kv_screensaver_timeout
+; .byt  OPTTYPE_KVBYTE
+; .word !CFG_SCREENSAVER_TIMEOUT
+; .byt  ^CFG_SCREENSAVER_TIMEOUT
+; .word !mdesc_browser_screensaver_timeout
+; .byt  ^mdesc_browser_screensaver_timeout
+; .byt  0,0,0
+; .byt  0,0,0
+; .byt  0,0,0
+
+ .byt 0
+
+menu_enttab_chip:
+; HEADER
+ .byt 1
+ .word !mtext_cfg_chip
+ .byt  ^mtext_cfg_chip
+; ENTRIES
+ .byt  MTYPE_VALUE
+ .word !mtext_chip_cx4_speed
+ .byt  ^mtext_chip_cx4_speed
+ .word !kv_cx4_speed
+ .byt  ^kv_cx4_speed
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_CX4_SPEED
+ .byt  ^CFG_CX4_SPEED
+ .word !mdesc_chip_cx4_speed
+ .byt  ^mdesc_chip_cx4_speed
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_VALUE
+ .word !mtext_chip_gsu_speed
+ .byt  ^mtext_chip_gsu_speed
+ .word !kv_gsu_speed
+ .byt  ^kv_gsu_speed
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_GSU_SPEED
+ .byt  ^CFG_GSU_SPEED
+ .word !mdesc_chip_gsu_speed
+ .byt  ^mdesc_chip_gsu_speed
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+ 
+ .byt  MTYPE_VALUE
+ .word !mtext_chip_msu1_volume_boost
+ .byt  ^mtext_chip_msu1_volume_boost
+ .word !kv_volume_boost
+ .byt  ^kv_volume_boost
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_MSU_VOLUME_BOOST
+ .byt  ^CFG_MSU_VOLUME_BOOST
+ .word !mdesc_chip_msu1_volume_boost
+ .byt  ^mdesc_chip_msu1_volume_boost
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt 0
+
+menu_enttab_ingame:
+; HEADER
+ .byt 1
+ .word !mtext_cfg_ingame
+ .byt  ^mtext_cfg_ingame
+; ENTRIES
+ .byt  MTYPE_VALUE
+ .word !mtext_ingame_shortreset
+ .byt  ^mtext_ingame_shortreset
+ .word !kv_onoff
+ .byt  ^kv_onoff
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_ENABLE_RST_TO_MENU
+ .byt  ^CFG_ENABLE_RST_TO_MENU
+ .word !mdesc_ingame_shortreset
+ .byt  ^mdesc_ingame_shortreset
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+ 
+ .byt  MTYPE_VALUE
+ .word !mtext_ingame_enable
+ .byt  ^mtext_ingame_enable
+ .word !kv_onoff
+ .byt  ^kv_onoff
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_ENABLE_INGAME_HOOK
+ .byt  ^CFG_ENABLE_INGAME_HOOK
+ .word !mdesc_ingame_enable
+ .byt  ^mdesc_ingame_enable
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_VALUE
+ .word !mtext_ingame_buttons
+ .byt  ^mtext_ingame_buttons
+ .word !kv_onoff
+ .byt  ^kv_onoff
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_ENABLE_INGAME_BUTTONS
+ .byt  ^CFG_ENABLE_INGAME_BUTTONS
+ .word !mdesc_ingame_buttons
+ .byt  ^mdesc_ingame_buttons
+ .byt  0,0,0
+ .byt  0,0,0
+ .word !(mfunc_isenabled_hooks-1)
+ .byt  ^(mfunc_isenabled_hooks-1)
+
+ .byt  MTYPE_VALUE
+ .word !mtext_ingame_holdoff
+ .byt  ^mtext_ingame_holdoff
+ .word !kv_onoff
+ .byt  ^kv_onoff
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_ENABLE_HOOK_HOLDOFF
+ .byt  ^CFG_ENABLE_HOOK_HOLDOFF
+ .word !mdesc_ingame_holdoff
+ .byt  ^mdesc_ingame_holdoff
+ .byt  0,0,0
+ .byt  0,0,0
+ .word !(mfunc_isenabled_hooks-1)
+ .byt  ^(mfunc_isenabled_hooks-1)
+
+ .byt  MTYPE_VALUE
+ .word !mtext_ingame_regionpatch
+ .byt  ^mtext_ingame_regionpatch
+ .word !kv_onoff
+ .byt  ^kv_onoff
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_R213F_OVERRIDE
+ .byt  ^CFG_R213F_OVERRIDE
+ .word !mdesc_ingame_regionpatch
+ .byt  ^mdesc_ingame_regionpatch
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_VALUE
+ .word !mtext_ingame_1chiptransientfixes
+ .byt  ^mtext_ingame_1chiptransientfixes
+ .word !kv_onoff
+ .byt  ^kv_onoff
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_1CHIP_TRANSIENT_FIXES
+ .byt  ^CFG_1CHIP_TRANSIENT_FIXES
+ .word !mdesc_ingame_1chiptransientfixes
+ .byt  ^mdesc_ingame_1chiptransientfixes
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt MTYPE_VALUE
+ .word !mtext_ingame_brightlimit
+ .byt  ^mtext_ingame_brightlimit
+ .word !kv_bright_limit
+ .byt  ^kv_bright_limit
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_BRIGHTNESS_LIMIT
+ .byt  ^CFG_BRIGHTNESS_LIMIT
+ .word !mdesc_ingame_brightlimit
+ .byt  ^mdesc_ingame_brightlimit
+ .word !(mfunc_chg_brightness-1)
+ .byt  ^(mfunc_chg_brightness-1)
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt 0
+
+menu_enttab_scic:
+; HEADER
+ .byt 1
+ .word !mtext_cfg_scic
+ .byt  ^mtext_cfg_scic
+; ENTRIES
+ .byt  MTYPE_VALUE
+ .word !mtext_scic_enable
+ .byt  ^mtext_scic_enable
+ .word !kv_yesno
+ .byt  ^kv_yesno
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_PAIR_MODE_ALLOWED
+ .byt  ^CFG_PAIR_MODE_ALLOWED
+ .word !mdesc_scic_enable
+ .byt  ^mdesc_scic_enable
+ .byt  0,0,0
+ .byt  0,0,0
+ .byt  0,0,0
+
+ .byt  MTYPE_VALUE
+ .word !mtext_scic_vmode_menu
+ .byt  ^mtext_scic_vmode_menu
+ .word !kv_vmode_noauto
+ .byt  ^kv_vmode_noauto
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_VIDMODE_MENU
+ .byt  ^CFG_VIDMODE_MENU
+ .word !mdesc_scic_vmode_menu
+ .byt  ^mdesc_scic_vmode_menu
+ .byt  0,0,0
+ .byt  0,0,0
+ .word !(mfunc_isenabled_scic-1)
+ .byt  ^(mfunc_isenabled_scic-1)
+
+ .byt  MTYPE_VALUE
+ .word !mtext_scic_vmode_game
+ .byt  ^mtext_scic_vmode_game
+ .word !kv_vmode
+ .byt  ^kv_vmode
+ .byt  OPTTYPE_KVBYTE
+ .word !CFG_VIDMODE_GAME
+ .byt  ^CFG_VIDMODE_GAME
+ .word !mdesc_scic_vmode_game
+ .byt  ^mdesc_scic_vmode_game
+ .byt  0,0,0
+ .byt  0,0,0
+ .word !(mfunc_isenabled_scic-1)
+ .byt  ^(mfunc_isenabled_scic-1)
+
+ .byt 0
+mfunc_set_bsx_time:
+  php
+  sep #$20 : .as
+  lda #^CFG_BSX_TIME
+  pha
+  pea !CFG_BSX_TIME
+    jsr time_init
+  pla
+  pla
+  pla
+  plp
+  rtl
+
+mfunc_isenabled_always:
+  sec
+  rtl
+
+mfunc_isenabled_never:
+  clc
+  rtl
+
+mfunc_isenabled_hooks:
+  lda @CFG_ENABLE_INGAME_HOOK
+  eor #$ff
+  ror
+  rtl
+
+mfunc_isenabled_scic:
+  lda @CFG_PAIR_MODE_ALLOWED
+  and @ST_PAIRMODE
+  eor #$ff
+  ror
+  rtl
+
+mfunc_chg_brightness:
+  sta @tgt_bright
+  sta @bright_limit
+  rtl
+
+kv_bsx_timesource:
+.word $0000, !text_rtc : .byt ^text_rtc
+.word $0001, !text_custom : .byt ^text_custom
+.word $ffff
+
+kv_onoff:
+.word $0000, !text_off : .byt ^text_off
+.word $0001, !text_on : .byt ^text_on
+.word $ffff
+
+kv_yesno:
+.word $0000, !text_no : .byt ^text_no
+.word $0001, !text_yes : .byt ^text_yes
+.word $ffff
+
+kv_scic_yesno:
+.word $0000, !text_no : .byt ^text_no
+.word $0001, !text_yes : .byt ^text_yes
+.word $ffff
+
+kv_vmode:
+.word $0002, !text_auto : .byt ^text_auto
+kv_vmode_noauto:
+.word $0001, !text_50Hz : .byt ^text_50Hz
+.word $0000, !text_60Hz : .byt ^text_60Hz
+.word $ffff
+
+kv_cx4_speed:
+.word $0000, !text_normal : .byt ^text_normal
+.word $0001, !text_fast : .byt ^text_fast
+.word $ffff
+
+kv_gsu_speed:
+.word $0000, !text_normal : .byt ^text_normal
+.word $0001, !text_fast : .byt ^text_fast
+.word $ffff
+
+kv_region:
+.word $0000, !text_off : .byt ^text_off
+.word $0001, !text_auto : .byt ^text_auto
+.word $0002, !text_pal : .byt ^text_pal
+.word $0003, !text_ntsc : .byt ^text_ntsc
+.word $ffff
+
+kv_screensaver_timeout:
+.word $0001, !text_1min : .byt ^text_1min
+.word $0002, !text_2min : .byt ^text_2min
+.word $0003, !text_3min : .byt ^text_3min
+.word $0004, !text_4min : .byt ^text_4min
+.word $0005, !text_5min : .byt ^text_5min
+.word $000a, !text_10min : .byt ^text_10min
+.word $000f, !text_15min : .byt ^text_15min
+.word $0014, !text_20min : .byt ^text_20min
+.word $001e, !text_30min : .byt ^text_30min
+.word $002d, !text_45min : .byt ^text_45min
+.word $003c, !text_60min : .byt ^text_60min
+.word $ffff
+
+kv_volume_boost:
+.word $0000, !text_off : .byt ^text_off
+.word $0001, !text_3_5db : .byt ^text_3_5db
+.word $0002, !text_6db : .byt ^text_6db
+.word $0003, !text_9_5db : .byt ^text_9_5db
+.word $0004, !text_12db : .byt ^text_12db
+.word $ffff
+
+kv_bright_limit:
+.word $0008, !text_minus7 : .byt ^text_minus7
+.word $0009, !text_minus6 : .byt ^text_minus6
+.word $000a, !text_minus5 : .byt ^text_minus5
+.word $000b, !text_minus4 : .byt ^text_minus4
+.word $000c, !text_minus3 : .byt ^text_minus3
+.word $000d, !text_minus2 : .byt ^text_minus2
+.word $000e, !text_minus1 : .byt ^text_minus1
+.word $000f, !text_off : .byt ^text_off
+.word $ffff
+
+menu_enttab_test:
+; HEADER
+ .byt 1
+ .word !test_mtext_title
+ .byt  ^test_mtext_title
+; ENTRIES
+ .byt  MTYPE_VALUE
+ .word !test_mtext_entry_byte
+ .byt  ^test_mtext_entry_byte
+ .word !test_mtext_entry_byte_ptab
+ .byt  ^test_mtext_entry_byte_ptab
+ .byt  OPTTYPE_BYTE
+ .word $F000
+ .byt  $7F
+ .byt  MTYPE_VALUE
+ .word !test_mtext_entry_word
+ .byt  ^test_mtext_entry_word
+ .word !test_mtext_entry_word_ptab
+ .byt  ^test_mtext_entry_word_ptab
+ .byt  OPTTYPE_WORD
+ .word $F001
+ .byt  $7F
+ .byt  MTYPE_VALUE
+ .word !test_mtext_entry_string
+ .byt  ^test_mtext_entry_string
+ .word $0008
+ .byt  0
+ .byt  OPTTYPE_STRING
+ .word $F003
+ .byt  $7F
+ .byt  MTYPE_VALUE
+ .word !test_mtext_entry_kvbyte
+ .byt  ^test_mtext_entry_kvbyte
+ .word !test_mtext_entry_kvbyte_ptab
+ .byt  ^test_mtext_entry_kvbyte_ptab
+ .byt  OPTTYPE_KVBYTE
+ .word $F00B
+ .byt  $7F
+ .byt  MTYPE_VALUE
+ .word !test_mtext_entry_kvword
+ .byt  ^test_mtext_entry_kvword
+ .word !test_mtext_entry_kvword_ptab
+ .byt  ^test_mtext_entry_kvword_ptab
+ .byt  OPTTYPE_KVWORD
+ .word $F00C
+ .byt  $7F
+ .byt  MTYPE_VALUE
+ .word !test_mtext_entry_file
+ .byt  ^test_mtext_entry_file
+ .word !test_mtext_entry_file_path
+ .byt  ^test_mtext_entry_file_path
+ .byt  OPTTYPE_FILESEL
+ .word $F00E
+ .byt  $7F
+
+ .byt 0
+
+test_mtext_title              .byt "Test Menu", 0
+test_mtext_entry_byte         .byt "Byte Select", 0
+test_mtext_entry_word         .byt "Word Select", 0
+test_mtext_entry_string       .byt "String Select", 0
+test_mtext_entry_kvbyte       .byt "8bit Key-Value Select", 0
+test_mtext_entry_kvword       .byt "16bit Key-Value Select", 0
+test_mtext_entry_file         .byt "File Select", 0
+test_mtext_entry_byte_ptab    .word $000e, $00e9
+test_mtext_entry_word_ptab    .word $0052, $fecd
+test_mtext_entry_kvbyte_ptab  .word $0000, !text_on : .byt ^text_on
+                              .word $0003, !text_off : .byt ^text_off
+                              .word $0001, !text_yes : .byt ^text_yes
+                              .word $000e, !text_no : .byt ^text_no
+                              .word $0004, !text_fast : .byt ^text_fast
+                              .word $ffff
+
+test_mtext_entry_kvword_ptab  .word $10f0, !text_50Hz : .byt ^text_50Hz
+                              .word $20e3, !text_60Hz : .byt ^text_60Hz
+                              .word $0008, !text_normal : .byt ^text_normal
+                              .word $0133, !text_rtc : .byt ^text_rtc
+                              .word $010a, !text_auto : .byt ^text_auto
+                              .word $ffff
+
+test_mtext_entry_file_path    .byt TYPE_IPS : .word !rootdir : .byt ^rootdir

@@ -5,8 +5,10 @@
 
 // #define DEBUG_FS
 // #define DEBUG_SD
+// #define DEBUG_SD_OFFLOAD
 // #define DEBUG_IRQ
 // #define DEBUG_MSU1
+// #define DEBUG_YAML
 
 #define IN_AHBRAM                 __attribute__ ((section(".ahbram")))
 
@@ -35,13 +37,21 @@
 
 #define CONFIG_UART_NUM	          3
 // #define CONFIG_CPU_FREQUENCY      90315789
-#define CONFIG_CPU_FREQUENCY      88000000
+#define CONFIG_CPU_FREQUENCY      96000000
 //#define CONFIG_CPU_FREQUENCY      46000000
 #define CONFIG_UART_PCLKDIV       1
 #define CONFIG_UART_TX_BUF_SHIFT  8
-//#define CONFIG_UART_BAUDRATE      921600
-#define CONFIG_UART_BAUDRATE      115200
+#define CONFIG_UART_BAUDRATE      921600
+//#define CONFIG_UART_BAUDRATE      115200
 #define CONFIG_UART_DEADLOCKABLE
+
+#define CONFIG_CLK_MULT           16
+#define CONFIG_CLK_PREDIV         2
+#define CONFIG_CLK_CCLKDIV        2
+
+//#define CONFIG_CLK_MULT           43
+//#define CONFIG_CLK_PREDIV         2
+//#define CONFIG_CLK_CCLKDIV        6
 
 #define SSP_CLK_DIVISOR           2
 
@@ -64,7 +74,8 @@
 #define FPGA_MCU_RDY_BIT          9
 
 #define QSORT_MAXELEM             2048
-#define CLTBL_SIZE		  100
+#define SORT_STRLEN               256
+#define CLTBL_SIZE                100
 
 #define DIR_FILE_MAX              16380
 
@@ -94,5 +105,8 @@
 #define SD_DAT3PIN (3)
 
 #define SD_DAT (LPC_GPIO2->FIOPIN0)
+
+#define USB_CONNREG LPC_GPIO4
+#define USB_CONNBIT 28
 
 #endif

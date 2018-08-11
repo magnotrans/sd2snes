@@ -1,21 +1,21 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date:    19:19:08 12/01/2010 
-// Design Name: 
-// Module Name:    sd_dma 
-// Project Name: 
-// Target Devices: 
-// Tool versions: 
-// Description: 
+// Company:
+// Engineer:
 //
-// Dependencies: 
+// Create Date:    19:19:08 12/01/2010
+// Design Name:
+// Module Name:    sd_dma
+// Project Name:
+// Target Devices:
+// Tool versions:
+// Description:
 //
-// Revision: 
+// Dependencies:
+//
+// Revision:
 // Revision 0.01 - File Created
-// Additional Comments: 
+// Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
 module sd_dma(
@@ -54,6 +54,8 @@ wire SD_DMA_EN_rising = (SD_DMA_ENr [1:0] == 2'b01);
 reg SD_DMA_STATUSr;
 assign SD_DMA_STATUS = SD_DMA_STATUSr;
 
+reg SD_DMA_CLKMASKr = 1'b1;
+
 // we need 1042 cycles (startbit + 1024 nibbles + 16 crc + stopbit)
 reg [10:0] cyclecnt;
 initial cyclecnt = 11'd0;
@@ -72,8 +74,12 @@ assign SD_DMA_SRAM_DATA = SD_DMA_SRAM_DATAr;
 reg [2:0] clkcnt;
 initial clkcnt = 3'b000;
 reg [1:0] SD_CLKr;
-always @(posedge CLK) SD_CLKr <= {SD_CLKr[0], clkcnt[1]};
-assign SD_CLK = SD_DMA_STATUSr ? SD_CLKr[1] : 1'bZ;
+initial SD_CLKr = 2'b11;
+always @(posedge CLK)
+  if(SD_DMA_EN_rising) SD_CLKr <= 2'b11;
+  else SD_CLKr <= {SD_CLKr[0], clkcnt[1]};
+
+assign SD_CLK = SD_DMA_CLKMASKr ? 1'bZ : SD_CLKr[1];
 
 always @(posedge CLK) begin
   if(SD_DMA_EN_rising) begin
@@ -84,6 +90,14 @@ always @(posedge CLK) begin
   else if (SD_DMA_DONE_rising) SD_DMA_STATUSr <= 1'b0;
 end
 
+always @(posedge CLK) begin
+  if(SD_DMA_EN_rising) begin
+    SD_DMA_CLKMASKr <= 1'b0;
+  end
+  else if (SD_DMA_DONEr) begin
+    SD_DMA_CLKMASKr <= 1'b1;
+  end
+end
 always @(posedge CLK) begin
   if(cyclecnt == 1042) SD_DMA_DONEr <= 1;
   else SD_DMA_DONEr <= 0;
@@ -101,7 +115,7 @@ end
 
 always @(posedge CLK) begin
   if(SD_DMA_EN_rising || !SD_DMA_STATUSr) cyclecnt <= 0;
-  else if(clkcnt[1:0] == 2'b11) cyclecnt <= cyclecnt + 1;
+  else if(clkcnt[1:0] == 2'b10) cyclecnt <= cyclecnt + 1;
 end
 
 // we have 8 clk cycles to complete one RAM write
@@ -110,20 +124,20 @@ always @(posedge CLK) begin
   if(SD_DMA_STATUSr) begin
     case(clkcnt[2:0])
       3'h0: begin
-        SD_DMA_SRAM_WEr <= 1'b1;
         SD_DMA_SRAM_DATAr[7:4] <= SD_DAT;
         if(cyclecnt>SD_DMA_STARTr && cyclecnt <= SD_DMA_ENDr) SD_DMA_NEXTADDRr <= 1'b1;
       end
       3'h1:
         SD_DMA_NEXTADDRr <= 1'b0;
-//  3'h2:
-      3'h3:
+      3'h2:
         if(cyclecnt>=SD_DMA_STARTr && cyclecnt < SD_DMA_ENDr) SD_DMA_SRAM_WEr <= 1'b0;
+//      3'h3:
       3'h4:
         SD_DMA_SRAM_DATAr[3:0] <= SD_DAT;
 //  3'h5:
 //  3'h6:
-//  3'h7:
+      3'h7:
+        SD_DMA_SRAM_WEr <= 1'b1;
     endcase
   end
 end

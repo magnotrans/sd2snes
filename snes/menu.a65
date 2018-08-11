@@ -1,890 +1,1401 @@
 #include "memmap.i65"
 #include "dma.i65"
+#include "stack.i65"
 
-menu_init:
-	sep #$20 : .as
-	rep #$10 : .xl
-	lda #^ROOT_DIR
-	ldx #!ROOT_DIR
-	sta dirptr_bank
-	stx dirptr_addr
-	sta dirstart_bank
-	stx dirstart_addr
-	stz menu_state
-	stz dirend_onscreen
-	lda #$02
-	sta cursor_x
-	lda #$09
-	sta cursor_y
-	lda #$01
-	sta bar_xl
-	lda #$3e
-	sta bar_wl
-	ldx #$0000
-	stx dirptr_idx
-	stx menu_sel
-	stx direntry_xscroll
-	stx direntry_xscroll_state
-	lda #$01
-	sta menu_dirty
-	rep #$20 : .al
-	lda #!dirlog
-	sta dirlog_idx
-	sep #$20 : .as
-	lda #^dirlog
-	sta dirlog_idx+2
-	rts
+#define MENU_NUM_DATA_TYPES $07
 
-menuloop:
-menuloop_s1
-	sep #$20 : .as
-	rep #$10 : .xl
-	lda isr_done
-	lsr
-	bcc menuloop_s1
-	stz isr_done
-	jsr printtime
-	jsr menu_updates	;update stuff, check keys etc
-	lda menu_dirty		;is there ANY reason to redraw the menu?
-	cmp #$01
-	beq menuloop_redraw 	;then do
-	jsr scroll_direntry
-	bra menuloop_s1
-menuloop_redraw
-	stz menu_dirty
-	jsr menu_statusbar
-	jsr menu_redraw
-	jsr menu_cleanup	;update phase 2
-	bra menuloop_s1
-	rts
+mainmenu:
+  sep #$20 : .as
+  rep #$10 : .xl
+  lda #$02
+  sta window_x
+  lda #$09
+  sta window_y
+  lda #60
+  sta window_w
+  lda #18
+  sta window_h
+  jsr push_window
+  jsr window_greyout
+  lda #$06
+  sta window_x
+  lda #$0b
+  sta window_y
+  phb
+    lda #^menu_enttab_mm
+    pha
+    plb
+    ldx #!menu_enttab_mm
+    jsr show_menu
+  plb
+  jsr pop_window
+  rts
 
-menu_cleanup:
-	sep #$20 : .as
-	rep #$10 : .xl
-	lda dirend_onscreen     ;end of file list on screen?
-	beq menu_cleanup_out    ;
-	lda dirend_idx
-	lsr
-	lsr
-	pha
-menu_cleanup_loop               ;pad rest of screen with empty lines
-	cmp listdisp            ;end of screen reached?
-	beq +                   ;then leave
-	pha
-	clc
-	adc #$09                ;first line in text area
+; menu_select:
+; helper routine to select a list entry
+; window and list items must be printed in advance
+; used variables:
+;
+; window_x, window_y, window_w, window_h: for select bar setup
+; listsel_max: number of list entries to select from
+; listsel_step: spacing between list entries (y text lines)
+;
+; return value: index of selected item in A
+;               or #$FF if no item was selected
+menu_select:
+  php
+  sep #$20 : rep #$10 : .as : .xl
+  stz listsel_sel
+  bra +
+menu_select_noinit:
+  php
+  sep #$20 : rep #$10 : .as : .xl
++
+  lda window_x
+  inc
+  inc
+  sta bar_xl
+  lda window_w
+  sec
+  sbc #$04
+  sta bar_wl
+  lda listsel_sel
+  sta $211b
+  stz $211b
+  lda listsel_step
+  sta $211c
+  lda window_y
+  clc
+  adc $2134
+  sta bar_yl
+
+menu_select_loop1
+  lda isr_done
+  beq menu_select_loop1
+  stz isr_done
+  jsr printtime
+  jsr read_pad
+  lda pad_up
+  bne menu_select_up
+  lda pad_down
+  bne menu_select_down
+  lda pad_a
+  bne menu_select_item
+  lda pad_b
+  bne menu_select_none
+  bra menu_select_loop1
+menu_select_up
+  lda listsel_sel
+  beq menu_select_loop1
+  dec listsel_sel
+  lda bar_yl
+  sec
+  sbc listsel_step
+  sta bar_yl
+  bra menu_select_loop1
+menu_select_down
+  lda listsel_sel
+  inc
+  cmp listsel_max
+  beq menu_select_loop1
+  inc listsel_sel
+  lda bar_yl
+  clc
+  adc listsel_step
+  sta bar_yl
+  bra menu_select_loop1
+menu_select_item
+  lda listsel_sel
+  bra menu_select_exit
+menu_select_none
+  lda #$ff
+menu_select_exit
+  plp
+  rts
+
+
+.byt "SHOW_MENU"
+show_menu:
+; params:
+; x: offset of menu structure
+; db: bank of menu structure
+; local vars:
+#define _locals         $0c
+#define w_numentries    $00
+#define w_max_lbl_len   $02
+#define w_max_opt_len   $04
+#define w_title_len     $06
+#define w_menu_addr     $08
+#define w_menu_bank     $0a
+  AllocStack()
+; backup params
+  sep #$20 : .as
+  phb
+  pla
+  sta w_menu_bank
+  stx w_menu_addr
+  jsr menu_measure      ; determine required window dimensions
+  sep #$20 : .as
+  lda #$80
+  phb
+    pha
+    plb
+    lda w_numentries
+    sta $211b
+    stz $211b
+    lda [w_menu_addr] ; listsel_step from menu structure
+    sta $211c
+    lda $2134
+    sec
+    sbc [w_menu_addr] ; listsel_step from menu structure
+    inc
+    inc
+    inc
+    sta window_h
+    lda w_max_lbl_len
+    clc
+    adc w_max_opt_len
+; check whether window width is limited by label+option
+; or by window title text
+    cmp w_title_len
+    bcs +
+    lda w_title_len
+    inc
+    inc
++   clc
+    adc #$04
+    ldx w_max_opt_len
+    beq +
+    inc
+    inc
+    inc
++   sta window_w
+    jsr push_window
+    lda [w_menu_addr]
+    sta listsel_step
+    stz listsel_sel
+    ldy #$0001
+    rep #$20 : .al
+    lda [w_menu_addr], y
+    sta window_taddr
+    sep #$20 : .as
+    iny
+    iny
+    lda [w_menu_addr], y
+    sta window_tbank
+    jsr draw_window
+    jsr show_menu_entries
+    lda w_numentries
+    sta listsel_max
+show_menu_loop:
+    jsr menu_select_noinit
+    cmp #$ff
+    beq show_menu_out
+    sta $211b
+    stz $211b
+    lda #MENU_ENTRY_SIZE
+    sta $211c
+    rep #$20 : .al
+    lda $2134
+    clc
+    adc #$04
+    tay
+    lda [w_menu_addr], y
+    and #$00ff
+    iny
+    iny
+    iny
+    iny
+    cmp #MTYPE_SUBMENU
+    beq show_menu_submenu
+    cmp #MTYPE_FUNC
+    beq show_menu_func
+    cmp #MTYPE_VALUE
+    bne show_menu_cont
+    jmp show_menu_editvalue
+show_menu_cont:
+    sep #$20 : .as
+;    jsr pop_window
+    jsr show_menu_entries
+    jmp show_menu_loop
+show_menu_out:
+    sep #$20 : .as
+    jsr pop_window
+  plb
+  FreeStack()
+  rts
+
+show_menu_entries:
+  php
+  sep #$20 : .as
+  phb
+    lda w_menu_bank
+    pha
+    plb
+    ldx w_menu_addr
+    inx
+    inx
+    inx
+    inx
+    lda w_max_lbl_len
+    pha
+    lda w_max_opt_len
+    pha
+    jsr menu_print_entries
+    pla
+    pla
+  plb
+  plp
+  rts
+
+show_menu_submenu:
+    .al
+    phy
+      jsr push_window
+      jsr window_greyout
+    ply
+    lda [w_menu_addr], y
+    tax
+    sep #$20 : .as
+    lda @window_x
+    inc
+    inc
+    sta @window_x
+    lda @window_y
+    inc
+    sta @window_y
+    iny
+    iny
+    lda [w_menu_addr], y
+    phb
+      pha
+      plb
+      jsr show_menu
+    plb
+    phy
+    jsr pop_window
+    ply
+    bra show_menu_cont
+
+show_menu_func:
+    phy
+    jsr push_window
+    jsr window_greyout
+    ply
+    phk
+    per show_menu_func_cont-1
+    rep #$20 : .al
+    lda [w_menu_addr], y
+    tax
+    sep #$20 : .as
+    iny
+    iny
+    lda [w_menu_addr], y
+    pha
+    phx
+    rtl
+show_menu_func_cont:
+    phy
+    jsr pop_window
+    ply
+    jmp show_menu_cont
+
+show_menu_editvalue:
+    phy
+      phb
+        rep #$20 : .al
+        tya
+        clc
+        adc w_menu_addr
+        sec
+        sbc #$0004 ; subtract previous Y displacement
+        tax
+        sep #$20 : .as
+        lda w_menu_bank
+        pha
+        plb
+        jsr menu_edit_value
+      plb
+    ply
+    jmp show_menu_cont
+#undef _locals
+
+; params:
+; x: offset of menu structure
+; db: bank of menu structure
+; returns:
+; number of menu entries
+; maximum menu label string length
+; maximum menu option string length
+.byt "MENU_MEASURE"
+menu_measure:
+; local variables
+#define _locals         $02
+#define w_max_kv_len    $00
+; ==== return variables (same as parameter variables at the caller)
+#define r_numentries    $00
+#define r_max_lbl_len   $02
+#define r_max_opt_len   $04
+#define r_title_len     $06
+; ==== WORKING VARIABLES ON STACK ====
+  AllocStack()           ; implies PHP : PHD : .al
+  stz StackParam(r_max_lbl_len) ; initialize variable
+  stz StackParam(r_max_opt_len) ; initialize variable
+  stz StackParam(r_numentries)
+  stz w_max_kv_len
+; ====================================
+; include window title in calculation
+  sep #$20 : .as
+  ldy !$1, x
+  lda !$3, x
+  phb
+    pha
+    plb
+    jsr strlen
+    sty StackParam(r_title_len)
+  plb
+  inx
+  inx
+  inx
+  inx ; move pointer past menu header
+  rep #$20 : .al
+menu_measure_line_loop:
+  lda !$0, x           ; read menu entry type
+  and #$00ff           ; (mask)
+  beq menu_measure_out ; termination -> exit
+  inc StackParam(r_numentries) ; entry counter
+  phb
+    sep #$20 : .as
+    ldy !$1, x         ; resolve pointer to menu entry text
+    lda !$3, x
+    pha
+    plb
+    jsr strlen
+  plb
+  lda !$0, x
+  cmp #MTYPE_SUBMENU    ; add 2 chars for '...' on sub menu entries
+  bne +
+  iny
+  iny
++ rep #$20 : .al
+  cpy StackParam(r_max_lbl_len); replace max value with
+  bmi +                        ; new length
+  sty StackParam(r_max_lbl_len); if bigger or equal.
++ jsr menu_meas_opt            ; calculate max option string length
+                               ; move to next entry.
+  cmp StackParam(r_max_opt_len)
+  bmi +
+  sta StackParam(r_max_opt_len)
++ txa
+  clc
+  adc #MENU_ENTRY_SIZE
+  tax
+  bra menu_measure_line_loop
+menu_measure_out:
+  FreeStack()
+  rts
+
+
+; **** menu_meas_opt ****
+; params:
+; =======
+; x : address of menu entry
+; db: bank of menu entry
+;
+; returns:
+; ========
+; a: calculated max parameter length for values of this entry
+menu_meas_no_set:
+  .as
+  lda #$00
+  jmp menu_meas_opt_set
+menu_meas_opt:
+  php
+    sep #$20 : .as
+  ;  lda !$4, x         ; calculate space needed to show options
+  ;  cmp #MTYPE_VALUE   ; only for "value set" entry types
+  ;  bne menu_meas_no_set
+    lda !$7, x
+    beq menu_meas_no_set ; no option
+    cmp #$01           ; uint8
+    bne menu_meas_opt_02
+    lda #$03           ; "0"-"255" - 3 chars
+    bra menu_meas_opt_set
+menu_meas_opt_02
+    cmp #$02           ; uint16
+    bne menu_meas_opt_03
+    lda #$05           ; "0"-"65535" - 5 chars
+    bra menu_meas_opt_set
+menu_meas_opt_03
+    cmp #$03           ; string (free entry)
+    bne menu_meas_opt_04
+    lda !$4, x         ; load length constraint
+    bra menu_meas_opt_set
+menu_meas_opt_04
+    cmp #$04           ; key-value (8bit)
+    beq menu_meas_opt_keyval
+    cmp #$05           ; key-value (16bit)
+    bne menu_meas_opt_06
+menu_meas_opt_keyval ; count max value length
+    pea $0000
+    phb
+      ldy !$4, x       ; get pointer to
+      lda !$6, x       ; key-value table
+      pha
+      plb
+      rep #$20 : .al
+menu_meas_opt_nextkey
+      lda !$0, y        ; get key
+      cmp #$ffff
+      beq +
+      iny
+      iny              ; move to value
+      phy
+        phb
+          sep #$20 : .as
+          lda !$2, y     ; get bank of string
+          pha
+          rep #$20 : .al
+          lda !$0, y     ; get pointer to string
+          plb
+          tay
+          jsr strlen     ; get length
+        plb
+        tya
+        cmp 4, s ; compare-replace
+        bmi menu_meas_opt_keyval_skip
+        sta 4, s
+menu_meas_opt_keyval_skip
+      ply
+      iny              ; move to next key
+      iny
+      iny
+      bra menu_meas_opt_nextkey
++
+    plb
+    pla
+    bra menu_meas_opt_set
+menu_meas_opt_06      ; file select (16 characters)
+    .as
+    cmp #$06
+    bne menu_meas_opt_07
+    lda #$10
+    bra menu_meas_opt_set
+menu_meas_opt_07      ; date/time select (19 characters)
+    lda #$13
+    bra menu_meas_opt_set
+menu_meas_opt_set:
+  rep #$20 : .al
+  and #$00ff
+  plp
+  rts
+#undef _locals
+
+.byt "MENU_PRINT_ENTRIES"
+menu_print_entries:
+#define _locals         $00
+; params
+; x: address of menu entry structure
+; db: bank of menu entry structure
+#define p_max_lbl_len   $01
+#define p_max_opt_len   $00
+  AllocStack()
+  sep #$20 : .as
+  lda @window_y
+  inc
+  sta @print_y
+menu_print_ent_loop:
+  lda @window_w
+  sta @print_count
+  lda @window_x
+  inc
+  inc
+  sta @print_x
+  lda !0, x ; entry type. 0 = termination
+  bne +
+  jmp menu_print_ent_out
++ lda !1, x ; address of option name string
+  sta @print_src
+  lda !2, x ; (address cont'd)
+  sta @print_src+1
+  lda !3, x ; bank of option name string
+  sta @print_bank
+  jsr menu_check_disabled_func
+  lda #$00
+  bcc +
+  lda #$06
++ sta @print_pal
+  phx
+  jsr hiprint
+  plx
+  lda !0, x
+  cmp #MTYPE_SUBMENU
+  bne +
+  lda @print_done
+  adc @print_x
+  dec
+  sta @print_x
+  lda #<text_ellipse
+  sta @print_src
+  lda #>text_ellipse
+  sta @print_src+1
+  lda #^text_ellipse
+  sta @print_bank
+  phx
+    jsr hiprint
+  plx
++ lda StackParam(p_max_lbl_len)
+  clc
+  adc @window_x
+  adc #$05
+  sta @print_x
+  lda StackParam(p_max_opt_len)
+  sta @print_count
+  lda #^space64
+  sta @print_bank
+  rep #$20 : .al
+  lda #!space64
+  sta @print_src
+  phx
+    jsr hiprint
+  plx
+  jsr menu_print_opt_string
+  txa
+  clc
+  adc #MENU_ENTRY_SIZE
+  tax
+  sep #$20 : .as
+  lda @print_y
+  clc
+  adc @listsel_step
+  sta @print_y
+  jmp menu_print_ent_loop
+menu_print_ent_out:
+  FreeStack()
+  rts
+#undef _locals
+
+.byt "MENU_PRINT_OPT_STRING"
+menu_print_opt_string_none:
+  jmp menu_print_opt_string_out
+menu_print_opt_string:
+; params
+; x: address of menu entry structure
+; db: bank of menu entry structure
+#define _locals      $0b
+#define w_entry_addr $00
+#define w_entry_bank $02
+#define w_kvpar_addr $03
+#define w_kvpar_bank $05
+#define w_kvpar_data $06
+#define w_kvtab_addr $08
+#define w_kvtab_bank $0a
+  AllocStack()
+  rep #$20 : .al
+  lda !$8, x
+  sta w_entry_addr
+  lda #!stringbuf
+  sta @print_src
+  sep #$20 : .as
+  jsr menu_check_disabled_func
+  lda #$01
+  bcc +
+  lda #$06
++ sta @print_pal
+  lda #$40
+  sta @print_count
+  lda #^stringbuf
+  sta @print_bank
+  lda !$a, x
+  sta w_entry_bank
+;  lda !$0, x
+;  cmp #MTYPE_VALUE
+;  bne menu_print_opt_string_none
+  lda !$7, x
+  beq menu_print_opt_string_none
+  cmp #$01
+  bne menu_print_opt_string_02
+  rep #$20 : .al
+  lda [w_entry_addr]
+  and #$00ff
+  phx
+    jsr bin2dec16
+    lda @print_src
+    tay
+    sep #$20 : .as
+    lda @print_bank
+    phb
+      pha
+      plb
+      jsr right_align
+    plb
+    jsr hiprint
+  plx
+  jmp menu_print_opt_string_out
+menu_print_opt_string_02:
+  .as
+  cmp #$02
+  bne menu_print_opt_string_03
+  rep #$20 : .al
+  lda [w_entry_addr]
+  phx
+    jsr bin2dec16
+    lda @print_src
+    tay
+    sep #$20 : .as
+    lda @print_bank
+    phb
+      pha
+      plb
+      jsr right_align
+    plb
+    jsr hiprint
+  plx
+  jmp menu_print_opt_string_out
+menu_print_opt_string_03:
+  .as
+  cmp #$03
+  bne menu_print_opt_string_04
+  rep #$20 : .al
+  lda !$8, x
+  sta @print_src
+  tay
+  sep #$20 : .as
+  lda !$4, x
+  sta @print_count
+  lda !$a, x
+  sta @print_bank
+  phx
+    phb
+      pha
+      plb
+      jsr right_align
+    plb
+    jsr hiprint
+  plx
+  lda @window_w
+  sta @print_count
+  jmp menu_print_opt_string_out
+menu_print_opt_string_04:
+  .as
+  cmp #$04
+  beq menu_print_opt_string_keyval
+  cmp #$05
+  bne menu_print_opt_string_06
+menu_print_opt_string_keyval:
+  lda !$a, x              ; load address
+  ldy !$8, x              ; of current setting
+  sta w_kvpar_bank
+  sty w_kvpar_addr
+  rep #$20 : .al
+  lda [w_kvpar_addr]      ; load currently set value
+  ; mask for 8-bit key!
+  phx
+    ldy !$7, x
+    sep #$10 : .xs
+    cpy #$05
+    beq +
+    and #$00ff
++   rep #$10 : .xl
+  plx
+  sta w_kvpar_data
+  lda !$4, x              ; load pointer to kvtable
+  sta w_kvtab_addr
+  sep #$20 : .as
+  lda !$6, x
+  sta w_kvtab_bank
+  phb
+    pha
+    plb
+    rep #$20 : .al
+    ldy w_kvtab_addr
+    lda w_kvpar_data
+    jsr menu_kv_lookup
+; sanitize invalid option setting
+    cpy #$ffff
+    bne +
+    ldy w_kvtab_addr      ; invalid setting -> default to first entry
++   lda !$2, y
+    pha                   ; save offset for right-align
+      sta @print_src
+      sep #$20 : .as
+      lda !$4, y
+      sta @print_bank
+      pha
+      plb
+    ply
+    jsr right_align
+  plb
+  phx
+    jsr hiprint
+  plx
+  jmp menu_print_opt_string_out
+menu_print_opt_string_06:
+  sep #$20 : .as
+  cmp #$06
+  bne menu_print_opt_string_07
+  lda #$41
+  sta @stringbuf
+  lda #$00
+  sta @stringbuf+1
+  jsr menu_check_disabled_func
+  lda #$02
+  bcc +
+  lda #$06
++ sta @print_pal
+  lda #$10
+  sta @print_count
+  rep #$20 : .al
+  lda #!stringbuf
+  sta @print_src
+  tay
+  sep #$20 : .as
+  lda #^stringbuf
+  sta @print_bank
+  phx
+    phb
+      pha
+      plb
+      jsr right_align
+    plb
+    jsr hiprint
+  plx
+  bra menu_print_opt_string_out
+menu_print_opt_string_07:
+  sep #$20 : .as
+  jsr menu_check_disabled_func
+  lda #$02
+  bcc +
+  lda #$06
++ sta @print_pal
+  lda #$13
+  sta @print_count
+  rep #$20 : .al
+  lda #!stringbuf
+  sta @print_src
+  tay
+  sep #$20 : .as
+  lda #^stringbuf
+  sta @print_bank
+  phx
+    phb
+      pha
+      plb
+      phy
+        lda w_entry_bank
+        ldx w_entry_addr
+        pha
+        phx
+          jsr rendertime
+        plx
+        pla
+      ply
+      jsr right_align
+    plb
+    jsr hiprint
+  plx
+menu_print_opt_string_out:
+  FreeStack()
+  rts
+
+; menu_kv_lookup
+; look for key in a kv table
+; and return address of kv entry
+; params:
+; y: address of entry table
+; db: bank of entry table
+; a: search value
+; returns:
+; y: address of table entry if found,
+;    $ffff if not found
+menu_kv_lookup:
+  php
+    rep #$30 : .xl : .al
+    pha
+-   lda !$0, y          ; compare with table key
+    cmp #$ffff          ; termination
+    beq +
+    cmp $1, s          ; compare with search value
+    beq menu_kv_lookup_out
+    iny
+    iny
+    iny
+    iny
+    iny
+    bra -
++   ldy #$ffff
+menu_kv_lookup_out:
+    pla
+  plp
+  rts
+#undef _locals
+
+; menu_edit_value
+; show a select/edit dialog depending on data type
+; and store value in location according to menu
+; entry structure
+; params:
+; db: bank of menu entry
+; x: address of menu entry
+.byt "MENU_EDIT_VALUE"
+menu_edit_value:
+; local variables (also available to callees above "#undef _locals")
+#define _locals         $11
+#define w_preset_addr   $00
+#define w_preset_bank   $02
+#define w_value_addr    $03
+#define w_value_bank    $05
+#define w_work_value    $06
+#define w_label_addr    $08
+#define w_label_bank    $0a
+#define w_value_len     $0b
+#define w_text_grey     $0d
+#define w_chgfunc_addr  $0e
+#define w_chgfunc_bank  $10
+; returns:
+; carry flag: 1=value set, 0=cancelled
+  AllocStack()
+  ; prepare work variables for sub routines
+  jsr menu_meas_opt
+  sta w_value_len
+  lda !$4, x
+  sta w_preset_addr
+  lda !$8, x
+  sta w_value_addr
+  lda !14, x
+  sta w_chgfunc_addr
+  lda #$0000 ; cleanup B for jump table offset
+  sep #$20 : .as
+  jsr menu_check_disabled_func
+  ror
+  sta w_text_grey
+  lda !$6, x
+  sta w_preset_bank
+  lda !$a, x
+  sta w_value_bank
+  lda !16, x
+  sta w_chgfunc_bank
+; adjust selection bar to highlight parameter area
+  lda @bar_xl
+  clc
+  adc @bar_wl
+  sec
+  sbc w_value_len
+  sta @bar_xl
+  lda w_value_len
+  sta @bar_wl
+  lda !$7, x ; load data type
+  cmp #MENU_NUM_DATA_TYPES+1
+  bcs menu_edit_value_out ; do not jump to undefined
+  asl ; prepare jump table pointer
+  txy ; save address of menu entry (bank is still set)
+  tax ; jump table offset
+  phx
+    lda #$01
+    jsr set_bar_color
+  plx
+  rep #$20 : .al
+  lda [w_value_addr]
+  sta w_work_value
+  jsr (menu_tab_edit_value_dialogs, x)
+  bcc +
+  lda #CMD_SAVE_CFG
+- sta @MCU_CMD
+  cmp @SNES_CMD
+  bne -
+  lda #$0000
+  sta @MCU_CMD
+  bra menu_edit_value_skip_reset_chghook
++ lda [w_value_addr]
+  sta w_work_value
+  jsr menu_check_change_hook
+menu_edit_value_skip_reset_chghook:
+  phx
+    lda #$0000
+    jsr set_bar_color
+  plx
+menu_edit_value_out:
+  FreeStack()
+  rts
+
+
+
+; **** menu value dialogs ****
+; params:
+; =======
+;   y: address of menu entry struct
+;  db: bank of menu entry struct
+;
+; returns:
+; ========
+;   c: set="value set" (call post edit hook)
+;      clear="entry cancelled"
+; the value itself is modified as a working copy and written back on demand.
+menu_value_dialog_dummy:
+  rts
+
+menu_value_dialog_u8:
+  php
+    rep #$10 : .xl
+    sep #$20 : .as
+    phb
+-     jsr waitblank
+      jsr read_pad
+      jsr printtime
+      lda @pad_up
+      bne menu_value_dialog_u8_up
+      lda @pad_down
+      bne menu_value_dialog_u8_down
+      lda @pad_left
+      bne menu_value_dialog_u8_left
+      lda @pad_right
+      bne menu_value_dialog_u8_right
+      lda @pad_b
+      bne menu_value_dialog_u8_cancel
+      lda @pad_a
+      bne menu_value_dialog_u8_set
+      lda @pad_l
+      bne menu_value_dialog_u8_l
+      lda @pad_r
+      bne menu_value_dialog_u8_r
+      bra -
+menu_value_dialog_u8_up:
+      lda w_work_value
+      ldy #$0002
+      cmp [w_preset_addr], y
+      bcc menu_value_dialog_u8_up_ok
+menu_value_dialog_u8_up_nok:
+      lda [w_preset_addr], y
+      sta w_work_value
+      bra +
+menu_value_dialog_u8_up_ok:
+      inc w_work_value
+      bra +
+menu_value_dialog_u8_down:
+      lda w_work_value
+      cmp [w_preset_addr]
+      beq +
+      bcs menu_value_dialog_u8_down_ok
+menu_value_dialog_u8_down_nok:
+      lda [w_preset_addr]
+      sta w_work_value
+      bra +
+menu_value_dialog_u8_down_ok:
+      dec w_work_value
+      bra +
+menu_value_dialog_u8_left:
+      lda w_work_value
+      sec
+      sbc #9
+      bcs menu_value_dialog_u8_left_noclip
+      lda #$00
+menu_value_dialog_u8_left_noclip:
+      sta w_work_value
+      cmp [w_preset_addr]
+      beq +
+      bcs menu_value_dialog_u8_down_ok
+      bra menu_value_dialog_u8_down_nok
+menu_value_dialog_u8_right:
+      lda w_work_value
+      clc
+      adc #9
+      bcc menu_value_dialog_u8_right_noclip
+      lda #$ff
+menu_value_dialog_u8_right_noclip:
+      sta w_work_value
+      ldy #$0002
+      cmp [w_preset_addr], y
+      beq +
+      bcc menu_value_dialog_u8_up_ok
+      bra menu_value_dialog_u8_up_nok
+menu_value_dialog_u8_l:
+      lda [w_preset_addr]
+      sta w_work_value
+      bra +
+menu_value_dialog_u8_r:
+      ldy #$0002
+      lda [w_preset_addr], y
+      sta w_work_value
+      bra +
+menu_value_dialog_u8_cancel:
+    plb
+  plp
+  clc
+  rts
+menu_value_dialog_u8_set:
+      lda w_work_value
+      sta [w_value_addr]
+      bra menu_value_dialog_u8_cont
+menu_value_dialog_u8_print:
++     rep #$20 : .al
+      lda w_work_value
+      and #$00ff
+      jsr bin2dec16
+      phb
+        sep #$20 : .as
+        lda #^stringbuf
+        pha
+        plb
+        ldy #!stringbuf
+        jsr right_align
+        lda bar_yl
         inc
-	sta print_y
-        stz print_x
-	lda #^space64
-	ldx #!space64
-	sta print_bank
-	stx print_src
-	stz print_pal
-	lda #64
-	sta print_count
-	jsr hiprint
-	pla
-	inc
-	bra menu_cleanup_loop
-+
-	pla
-	cmp menu_sel
-	beq menu_cleanup_out
-	bpl menu_cleanup_out
-	sta menu_sel
-menu_cleanup_out
-	rts
-
-
-menu_updates:
-;update selection, scroll etc
-	lda menu_sel
-	asl
-	asl
-	sta dirptr_idx
-	lda menu_sel
-	clc
-	adc #$08
-	sta bar_yl
-	lda #$3e
-	sta bar_wl
-	lda #$01
-	sta bar_xl
-;get input
-	jsr read_pad
-	lda #$04
-	and pad1trig+1
-	bne key_down
-	lda #$08
-	and pad1trig+1
-	bne key_up
-	lda #$01
-	and pad1trig+1
-	bne key_right
-	lda #$02
-	and pad1trig+1
-	bne key_left
-	lda #$80
-	and pad1trig+1
-	bne key_b
-	lda #$10
-	and pad1trig+1
-	bne key_start
-	lda #$20
-	and pad1trig+1
-	bne key_select
-	lda #$80
-	and pad1trig
-	bne key_a
-	lda #$40
-	and pad1trig
-	bne key_x
-	bra menuupd_out
-key_down
-	jsr menu_key_down
-	bra menuupd_out
-key_up
-	jsr menu_key_up
-	bra menuupd_out
-key_right
-	jsr menu_key_right
-	bra menuupd_out
-key_left
-	jsr menu_key_left
-	bra menuupd_out
-key_b
-	jsr menu_key_b
-	bra menuupd_out
-key_a
-	jsr menu_key_a
-	bra menuupd_out
-key_x
-	jsr menu_key_x
-	bra menuupd_out
-key_select
-	jsr menu_key_select
-	bra menuupd_out
-key_start
-	jsr menu_key_start
-	bra menuupd_out
-
-menuupd_out
-	lda #$09
-	sta cursor_y
-	rts
-
-
-menu_redraw:
-	lda menu_state
-	beq redraw_filelist
-;	cmp 1
-;	beq redraw_main
-menu_redraw_out
-	rts
-
-redraw_filelist
-	ldy #$0000
-	sty dirptr_idx
-	sty direntry_fits_idx
-	stz dirend_idx
-	stz dirend_onscreen
-redraw_filelist_loop
-	ldy dirptr_idx
-	tya
-	lsr
-	lsr
-	cmp listdisp
-	beq redraw_filelist_last
-	rep #$20 : .al
-	lda [dirptr_addr], y
-	sta @dirent_addr
-	iny
-	iny
-	sep #$20 : .as
-	lda [dirptr_addr], y	   ; load fileinfo bank
-	clc
-	adc #$c0                   ; add $C0 for memory map
-	sta @dirent_bank           ; store as current bank
-	cmp #$c0                   ; if bank was 0 -> dirend entry in DB
-	beq redraw_filelist_dirend ; handle dirend
-	iny
-	lda [dirptr_addr], y
-	iny
-	sta @dirent_type
-	sty dirptr_idx
-	jsr print_direntry
-	inc direntry_fits_idx
-	bra redraw_filelist_loop
-redraw_filelist_dirend
-	dey                        ; recover last valid direntry number
-	dey                        ; (we had 2x iny of the direntry pointer above,
-	beq +
-	dey                        ;  so account for those too)
-	dey
-	dey
-	dey
-+	sty dirend_idx             ; dirend_idx <- last valid directory entry.
-	lda #$01                   ; encountered during redraw, so must be on screen
-	sta dirend_onscreen
-	bra redraw_filelist_out
-redraw_filelist_last	;check if next offscreen item is end of dir
-	iny
-	iny
-	lda [dirptr_addr], y
-	beq redraw_filelist_dirend
-redraw_filelist_out
-	ldx #$0000
-	stx dirptr_idx
-	brl menu_redraw_out
-
-print_direntry:
-        lda cursor_y
         sta print_y
-	inc
-        sta cursor_y
+        lda #$01
+        bit w_text_grey
+        bpl +
+        lda #$06
++       sta print_pal
+        jsr hiprint
+      plb
+      brl -
+menu_value_dialog_u8_cont:
+    plb
+  plp
+  sec
+  rts
 
-	lda dirent_bank
-	ldx dirent_addr
+menu_value_dialog_u16:
+  php
+    rep #$10 : .xl
+    sep #$20 : .as
+    phb
+; adjust selection bar to highlight parameter area
+      rep #$20 : .al
+-     jsr waitblank
+      jsr read_pad
+      jsr printtime
+      lda @pad_up
+      ror
+      bcs menu_value_dialog_u16_up
+      lda @pad_down
+      ror
+      bcs menu_value_dialog_u16_down
+      lda @pad_left
+      ror
+      bcs menu_value_dialog_u16_left
+      lda @pad_right
+      ror
+      bcs menu_value_dialog_u16_right
+      lda @pad_b
+      ror
+      bcs menu_value_dialog_u16_cancel
+      lda @pad_a
+      ror
+      bcs menu_value_dialog_u16_set
+      lda @pad_l
+      ror
+      bcs menu_value_dialog_u16_l
+      lda @pad_r
+      ror
+      bcs menu_value_dialog_u16_r
+      bra -
+menu_value_dialog_u16_up:
+      lda w_work_value
+      ldy #$0002
+      cmp [w_preset_addr], y
+      bcc menu_value_dialog_u16_up_ok
+menu_value_dialog_u16_up_nok:
+      lda [w_preset_addr], y
+      sta w_work_value
+      bra +
+menu_value_dialog_u16_up_ok:
+      inc w_work_value
+      bra +
+menu_value_dialog_u16_down:
+      lda w_work_value
+      cmp [w_preset_addr]
+      beq +
+      bcs menu_value_dialog_u16_down_ok
+menu_value_dialog_u16_down_nok:
+      lda [w_preset_addr]
+      sta w_work_value
+      bra +
+menu_value_dialog_u16_down_ok:
+      dec w_work_value
+      bra +
+menu_value_dialog_u16_left:
+      lda w_work_value
+      sec
+      sbc #99
+      bcs menu_value_dialog_u16_left_noclip
+      lda #$0000
+menu_value_dialog_u16_left_noclip:
+      sta w_work_value
+      cmp [w_preset_addr]
+      beq +
+      bcs menu_value_dialog_u16_down_ok
+      bra menu_value_dialog_u16_down_nok
+menu_value_dialog_u16_right:
+      lda w_work_value
+      clc
+      adc #99
+      bcc menu_value_dialog_u16_right_noclip
+      lda #$ffff
+menu_value_dialog_u16_right_noclip:
+      sta w_work_value
+      ldy #$0002
+      cmp [w_preset_addr], y
+      beq +
+      bcc menu_value_dialog_u16_up_ok
+      bra menu_value_dialog_u16_up_nok
+menu_value_dialog_u16_l:
+      lda [w_preset_addr]
+      sta w_work_value
+      bra +
+menu_value_dialog_u16_r:
+      ldy #$0002
+      lda [w_preset_addr], y
+      sta w_work_value
+      bra +
+menu_value_dialog_u16_cancel:
+    plb
+  plp
+  clc
+  rts
+menu_value_dialog_u16_set:
+      lda w_work_value
+      sta [w_value_addr]
+      bra menu_value_dialog_u16_cont
+menu_value_dialog_u16_print:
++     rep #$20 : .al
+      lda w_work_value
+      jsr bin2dec16
+      phb
+        sep #$20 : .as
+        lda #^stringbuf
+        pha
+        plb
+        ldy #!stringbuf
+        jsr right_align
+        lda bar_yl
+        inc
+        sta print_y
+        lda #$01
+        bit w_text_grey
+        bpl +
+        lda #$06
++       sta print_pal
+        jsr hiprint
+      plb
+      rep #$20 : .al
+      brl -
+menu_value_dialog_u16_cont:
+    plb
+  plp
+  sec
+  rts
 
-	phb
-	pha
-	plb
+menu_value_dialog_string:
+  rts
 
-	lda @dirent_type
-	and #$f0
-	cmp #$80
-	rep #$20 : .al
-	bne dirent_is_file
-dirent_is_dir
-	lda #$04	;skip dir tgt
-	sta @fd_fnoff
-	lda #$01	;different color for dirs
-	bra dirent_type_cont
-dirent_is_file
-	lda #$06	;skip size string
-	sta @fd_fnoff
-	lda @dirent_type
-	and #$00ff
-	cmp #$0001	;SMC -> palette 0 (white)
-	bne +
-	lda #$0000
-	bra dirent_type_cont
-+
-	cmp #$0003  ;SPC -> palette 2
-	bne +
-	lda #$0002
-	bra dirent_type_cont
-	cmp #$0004	;IPS -> palette 2 (green)
-	bne +
-        lda #$0002
-	bra dirent_type_cont
-+
-	lda #$0000	;default -> palette 0
-dirent_type_cont
-	sta @print_pal
-	rep #$20 : .al
-	txa
-	clc
-	adc @fd_fnoff
-	tax
-	sep #$20 : .as
-	lda !0, x	;load offset of leaf (file) name
-	inc
-	rep #$20 : .al
-	and #$00ff	;kill hi byte
-	sta @fd_fnoff
-	txa
-	clc
-	adc @fd_fnoff
-	clc
-	adc @direntry_xscroll
-	sta @fd_fnoff
-	plb
+menu_value_dialog_kv8:
+  php
+    phb
+      sep #$20 : .as
+      lda w_preset_bank
+      pha
+      plb
+      ldy w_preset_addr
+      rep #$20 : .al
+      lda w_work_value
+      and #$00ff
+      jsr menu_kv_lookup
+; sanitize invalid option setting
+      sep #$20 : .as
+      cpy #$ffff
+      bne menu_value_dialog_kv8_loop
+      ldy w_preset_addr
+menu_value_dialog_kv8_loop:
+      phy
+        jsr waitblank
+        jsr read_pad
+        jsr printtime
+      ply
+      lda @pad_up
+      bne menu_value_dialog_kv8_up
+      lda @pad_down
+      bne menu_value_dialog_kv8_down
+      lda @pad_a
+      bne menu_value_dialog_kv8_set
+      lda @pad_b
+      bne menu_value_dialog_kv8_cancel
+      bra menu_value_dialog_kv8_loop
+menu_value_dialog_kv8_up:
+      ldx !$5, y
+      cpx #$ffff
+      beq +
+      iny
+      iny
+      iny
+      iny
+      iny
+      bra +
+menu_value_dialog_kv8_down:
+      cpy w_preset_addr
+      beq +
+      dey
+      dey
+      dey
+      dey
+      dey
+      bra +
+menu_value_dialog_kv8_set:
+      lda !$0, y
+      sta [w_value_addr]
+      bra menu_value_dialog_kv8_cont
+menu_value_dialog_kv8_cancel:
+    plb
+  plp
+  clc
+  rts
++     lda #^space64
+      sta @print_bank
+      rep #$20 : .al
+      lda #!space64
+      sta @print_src
+      sep #$20 : .as
+      lda @bar_yl
+      inc
+      sta @print_y
+      lda @window_x
+      clc
+      adc @window_w
+      clc
+      sbc w_value_len
+      dec
+      sta @print_x
+      lda w_value_len
+      sta @print_count
+      phy
+        jsr hiprint
+      ply
+      rep #$20 : .al
+      lda !$0, y
+      and #$00ff
+      sta w_work_value
+      lda !$2, y
+      sta @print_src
+      sta w_label_addr
+      sep #$20 : .as
+      lda !$4, y
+      sta @print_bank
+      lda #$01
+      bit w_text_grey
+      bpl +
+      lda #$06
++     sta @print_pal
+      phy
+        ldy w_label_addr
+        lda @print_bank
+        phb
+          pha
+          plb
+          jsr right_align
+          jsr hiprint
+        plb
+      ply
+      jsr menu_check_change_hook
+      brl menu_value_dialog_kv8_loop
+menu_value_dialog_kv8_cont:
+    plb
+  plp
+  sec
+  rts
 
-	lda cursor_x
-	sta print_x
+menu_value_dialog_kv16:
+  rts
 
-	sep #$20 : .as
-	ldx fd_fnoff
-	lda #54
-	sta print_count
-	stx print_src
-	lda dirent_bank
-	sta print_bank
-	jsr hiprint
-	lda cursor_x
-	clc
-	adc print_done
-	sta print_x
+menu_value_dialog_file:
+  rts
 
-	lda print_over
-	ldy direntry_fits_idx
-	sta !direntry_fits, y
-	lda #54
-	sec
-	sbc print_done
-	sta print_count
-	lda #^space64
-	ldx #!space64
-	sta print_bank
-	stx print_src
-	jsr hiprint
+menu_value_dialog_time:
+  php
+    sep #$20 : .as
+    lda @window_x
+    clc
+    adc @window_w
+    clc
+    sbc w_value_len
+    dec
+    pha ; p_time_x
+    lda @bar_yl
+    inc
+    pha ; p_time_y
+    lda w_value_bank
+    pha
+    ldx w_value_addr
+    phx
+    jsr time_init
+    plx
+    plx
+    pla
+    bcc menu_value_dialog_time_cancel
+  plp
+  sec
+  rts
+menu_value_dialog_time_cancel:
+  plp
+  clc
+  rts
 
-	sep #$20 : .as
-	lda dirent_type
-	and #$f0
-	cmp #$80
-	bne dirent_is_file_2
-	lda #^text_dirmark
-	ldx #!text_dirmark
-	sta print_bank
-	stx print_src
-	bra dirent_type_cont_2
-dirent_is_file_2
-	lda dirent_bank
-	ldx dirent_addr
-	sta print_bank
-	stx print_src
-dirent_type_cont_2
-	lda #56
-	sta print_x
-	lda #6
-	sta print_count
-	jsr hiprint
+menu_check_change_hook:
+  php
+  sep #$20 : .as
+  ; call function, if defined, to perform some action during value selection
+    lda w_chgfunc_addr
+    ora w_chgfunc_addr + 1
+    ora w_chgfunc_bank
+    clc
+    beq menu_check_change_hook_exit
+  ; push long return address for after function call
+    phk
+    per menu_check_change_hook_exit-1
+  ; push long address of changeHook function
+    lda w_chgfunc_bank
+    pha
+    lda w_chgfunc_addr + 1
+    pha
+    lda w_chgfunc_addr
+    pha
+    lda w_work_value
+    rtl ; call the changeHook function
+menu_check_change_hook_exit:
+  plp
+  rts
 
-	rts
 
-menu_key_down:
-	jsr scroll_direntry_clean
-	lda listdisp
-	dec
-	cmp menu_sel
-	bne down_noscroll
-	lda #$01
-	sta menu_dirty
-	lda dirend_onscreen
-	bne down_out
-	rep #$20 : .al
-	lda dirptr_addr
-	clc
-	adc #$04
-	bcc +
-	inc dirptr_bank
-+	sta dirptr_addr
-	sep #$20 : .as
-	rts
-down_noscroll
-	lda dirend_onscreen
-	beq +
-	lda dirend_idx
-	lsr
-	lsr
-	cmp menu_sel
-	beq menuupd_lastcursor
-	bcc menuupd_lastcursor
-+	lda menu_sel
-	inc
-	sta menu_sel
-down_out
-	rts
+#undef _locals
 
-menu_key_up:
-	jsr scroll_direntry_clean
-	lda menu_sel
-	bne up_noscroll
-	lda #$01
-	sta menu_dirty
-	rep #$20 : .al
-	lda dirptr_addr
-	cmp dirstart_addr
-	beq up_out
-	sec
-	sbc #$04
-	bcs +
-	dec dirptr_bank
-+	sta dirptr_addr
-	bra up_out
-up_noscroll
-	dec
-	sta menu_sel
-up_out
-	sep #$20 : .as
-	rts
+menu_check_disabled_func:
+  .as
+; call function, if defined, to determine whether menu entry should be drawn as active or inactive
+  lda !20, x
+  ora !21, x
+  ora !22, x
+  clc
+  beq menu_check_disabled_func_exit
+; push long return address for after function call
+  phk
+  per menu_check_disabled_func_exit-1
+; push long address of isDisabled function
+  lda !22, x
+  pha
+  lda !21, x
+  pha
+  lda !20, x
+  pha
+  rtl ; call the isDisabled function
+menu_check_disabled_func_exit:
+  rts
 
-menuupd_lastcursor
-	jsr scroll_direntry_clean
-	lda dirend_idx
-	lsr
-	lsr
-	sta menu_sel
-	rts
-
-; go back one page
-menu_key_left:
-	stz direntry_xscroll
-	stz direntry_xscroll_state
-	lda #$01            ; must redraw afterwards
-	sta menu_dirty
-	rep #$20 : .al
-	lda dirptr_addr     ; get current direntry pointer
-	beq +               ; special case: if 0, we are at the first entry in memory
-	lsr
-	lsr                 ; make comparable to listdisp
-	cmp listdisp        ; if there's less or equal previous entries...
-	beq +               ; ...than display lines, reset to directory start
-	bcc +
-	sec
-	sbc listdisp        ; subtract one screen page's worth of entries
-	asl
-	asl                 ; make comparable to dirstart_addr again
-	cmp dirstart_addr   ; check whether calculated offset is before...
-	bcc +               ; ...start of directory
--	sta dirptr_addr     ; store new selected entry
-	sep #$20 : .as
-	rts
-+	lda dirstart_addr   ; reset pointer to start of directory
-	stz menu_sel        ; reset the selection cursor too
-	bra -
-
-; go forth one page
-menu_key_right:
-	stz direntry_xscroll
-	stz direntry_xscroll_state
-	sep #$20 : .as
-	lda dirend_onscreen
-	bne menuupd_lastcursor
-	lda #$01
-	sta menu_dirty
-	rep #$20 : .al
-	lda listdisp
-	asl
-	asl
-	clc
-	adc dirptr_addr
-	sta dirptr_addr
-	sep #$20 : .as
-	rts
-
-menu_key_a:
-	jsr select_item
-	rts
-
-menu_key_select:
-	rts
-
-menu_key_start:
-	jsr select_last_file
-	rts
-
-menu_key_b:
-	stz direntry_xscroll
-	stz direntry_xscroll_state
-	rep #$20 : .al
-	lda dirstart_addr
-	beq skip_key_b
-	sta dirptr_addr
-	lda #$0000
-	sta menu_sel
-	bra select_item
-skip_key_b
-	sep #$20 : .as
-	rts
-
-select_item:
-	rep #$20 : .al
-	lda menu_sel
-	and #$00ff
-	asl
-	asl
-	tay
-	sep #$20 : .as
-	iny
-	iny
-	iny
-	lda [dirptr_addr], y
-	cmp #$01
-	beq sel_is_file
-	cmp #$03
-	beq sel_is_spc
-	cmp #$04
-	beq sel_is_file
-	cmp #$80
-	beq sel_is_dir
-	cmp #$81
-	beq sel_is_parent
-select_item_cont
-	rts
-sel_is_file
-	jsr select_file
-	bra select_item_cont
-sel_is_parent
-	jsr select_parent
-	bra select_item_cont
-sel_is_dir
-	jsr select_dir
-	bra select_item_cont
-sel_is_spc
-	jsr select_spc
-	bra select_item_cont
-
-select_file:
-	; have MCU load the rom
-	dey
-	rep #$20 : .al
-	lda [dirptr_addr], y
-	and #$00ff
-	sta @MCU_PARAM+2
-	dey
-	dey
-	lda [dirptr_addr], y
-	sta @MCU_PARAM
-	sep #$20 : .as
-	lda #$00
-	sta @$4200
-	sei
-	lda #$01
-	sta @MCU_CMD
-select_file_fade:
-	jsl @wram_fadeloop
-	rts
-
-select_dir:
-	tyx
-; save old dir position
-	rep #$20 : .al
-	ldy #$0000
-	lda @dirstart_addr
-	sta [dirlog_idx], y
-	iny
-	iny
-	lda @dirstart_bank
-	sta [dirlog_idx], y
-	iny
-	lda @dirptr_addr
-	sta [dirlog_idx], y
-	iny
-	iny
-	lda @dirptr_bank
-	sta [dirlog_idx], y
-	iny
-	lda @menu_sel
-	sta [dirlog_idx], y
-	lda @dirlog_idx
-	clc
-	adc #$0008
-	sta @dirlog_idx
-	sep #$20 : .as
-;---
-; y = direntry ptr
-	txy
-	dey
-	lda [dirptr_addr], y
-	clc
-	adc #$c0
-	sta @dirent_bank
-	dey
-	dey
-	rep #$20 : .al
-	lda [dirptr_addr], y
-	sta @dirent_addr
-	tax
-	sep #$20 : .as
-	lda @dirent_bank
-	phb
-	pha
-	plb
-	lda !2, x ; load linked dir start bank
-	clc
-	adc #$c0
-	sta @dirptr_bank
-	sta @dirstart_bank
-	rep #$20 : .al
-	lda !0, x ; load linked dir start address
-	sta @dirptr_addr
-	sta @dirstart_addr
-	lda #$0000
-	sta @menu_sel
-	sta @direntry_xscroll
-	sta @direntry_xscroll_state
-	sep #$20 : .as
-	lda #$01
-	sta @menu_dirty
-	plb
-	rts
-
-select_parent:
-	rep #$20 : .al
-	lda @dirlog_idx
-	sec
-	sbc #$0008
-	sta @dirlog_idx
-	ldy #$0000
-	lda [dirlog_idx], y ; load dirstart_addr
-	sta @dirstart_addr
-	iny
-	iny
-	sep #$20 : .as
-	lda [dirlog_idx], y ; load dirstart_bank
-	sta @dirstart_bank
-	iny
-	rep #$20 : .al
-	lda [dirlog_idx], y ; load dirptr_addr
-	sta @dirptr_addr
-	iny
-	iny
-	sep #$20 : .as
-	lda [dirlog_idx], y ; load dirptr_bank
-	sta @dirptr_bank
-	iny
-	rep #$20 : .al
-	lda [dirlog_idx], y ; load menu_sel
-	sta @menu_sel
-	sep #$20 : .as
-	lda #$01
-	sta @menu_dirty
-	rts
-
-select_spc:
-	dey
-	rep #$20 : .al
-	lda [dirptr_addr], y
-	and #$00ff
-	sta @MCU_PARAM+2
-	dey
-	dey
-	lda [dirptr_addr], y
-	sta @MCU_PARAM
-	sep #$20 : .as
-	lda #CMD_LOADSPC
-	sta @MCU_CMD
-wait_spc:
-	lda @MCU_CMD
-	cmp #$00
-	bne wait_spc
-	jsr spcplayer
-	jsr restore_screen
-	rts
-
-menu_key_x:
-	jsr mainmenu
-	rts
-
-setup_224:
-	php
-	rep #$30 : .xl : .al
-	lda #18
-	sta listdisp
-	dec
-	cmp menu_sel
-	bmi setup_224_adjsel
-	bra +
-setup_224_adjsel
-	sta menu_sel
-+
-	lda #18*64
-	sta textdmasize
-	lda #$000b
-	sta hdma_scroll+8
-	sep #$20 : .as
-	lda #$0b
-	sta $2110
-	lda #$00
-	sta $2110
-	lda #$00
-	sta barstep
-	ora #$08
-	sta $2133
-	lda #$08
-	sta hdma_math_selection
-	stz vidmode
-	lda #$01
-	sta menu_dirty
-	lda #^space64
-	ldx #!space64
-	sta print_bank
-	stx print_src
-	stz print_pal
-	lda #64
-	sta print_count
-	lda #27
-	sta print_y
-	stz print_x
-	jsr hiprint
-	lda #28
-	sta print_y
-	jsr hiprint
-	jsr hiprint
-
-	plp
-	rts
-
-menu_statusbar
-	pha
-	phx
-	php
-	sep #$20 : .as
-	rep #$10 : .xl
-	lda #^text_statusbar_keys
-	sta @print_bank
-	rep #$20 : .al
-	lda #!text_statusbar_keys
-	sta @print_src
-	sep #$20 : .as
-	lda #$00
-	sta @print_pal
-	lda #$02
-	sta @print_x
-	lda #$40
-	sta @print_count
-	lda listdisp
-	clc
-	adc #$0a
-	clc
-	adc vidmode
-	sta @print_y
-	jsr hiprint
-	plp
-	plx
-	pla
-	rts
-
-select_last_file:
-	php
-	sep #$20 : .as
-	rep #$10 : .xl
-	lda @LAST_STATUS
-	bne +
-	plp
-	rts
-+	jsr backup_screen
-	lda #^text_last
-	sta window_tbank
-	ldx #!text_last
-	stx window_taddr
-	lda @last_win_x
-	sta window_x
-	inc
-	inc
-	sta bar_xl
-	pha
-	lda @last_win_y
-	sta window_y
-	inc
-	sta bar_yl
-	inc
-	pha
-	lda @last_win_w
-	sta window_w
-	lda @last_win_h
-	sta window_h
-	jsr draw_window
-	stz print_pal
-	lda #^LAST_GAME
-	ldx #!LAST_GAME
-	sta print_bank
-	stx print_src
-	stz print_pal
-	pla
-	sta print_y
-	pla
-	sta print_x
-	lda #56
-	sta bar_wl
-	sta print_count
-	jsr hiprint
--	lda isr_done
-	lsr
-	bcc -
-	jsr printtime
-	jsr read_pad
-	lda #$80
-	and pad1trig+1
-	bne +
-	lda #$10
-	and pad1trig+1
-	beq -
-	lda #$04
-	sta @MCU_CMD
-	jmp select_file_fade
-+	jsr restore_screen
-	plp
-	rts
-
-scroll_direntry_clean:
-	lda #$01
-	sta direntry_xscroll_state
-	stz direntry_xscroll
-	stz direntry_xscroll_wait
-	jsr scroll_direntry
-	stz direntry_xscroll_state
-	stz direntry_xscroll
-	rts
-
-scroll_direntry:
-	ldy menu_sel
-	lda direntry_xscroll_state
-	bne +
-	lda direntry_fits, y
-	bne scroll_direntry_enter
-;	stz direntry_xscroll_state
-	rts
-scroll_direntry_enter
-	lda #$01
-	sta direntry_xscroll_state
-	stz direntry_xscroll_wait
-+	lda direntry_xscroll_wait
-	beq +
-	dec direntry_xscroll_wait
-	rts
-
-+	lda direntry_xscroll
-	bne scroll_direntry_scrollfast
-	lda #$28
-	bra +
-scroll_direntry_scrollfast
-	lda #$10
-+	sta direntry_xscroll_wait
-	tya
-	clc
-	adc #$09
-	sta cursor_y
-	lda #$02
-	sta cursor_x
-	rep #$20 : .al
-	lda menu_sel
-	asl
-	asl
-	tay
-	lda [dirptr_addr], y
-	sta @dirent_addr
-	iny
-	iny
-	sep #$20 : .as
-	lda [dirptr_addr], y	   ; load fileinfo bank
-	clc
-	adc #$c0                   ; add $C0 for memory map
-	sta @dirent_bank           ; store as current bank
-	iny
-	lda [dirptr_addr], y
-	iny
-	sta @dirent_type
-	ldy menu_sel
-	sty direntry_fits_idx
-	phy
-	jsr print_direntry
-	ply
-	lda direntry_fits, y
-	bne +
-	lda #$ff
-	sta direntry_xscroll_state
-	lda #$28
-	sta direntry_xscroll_wait
-+	lda direntry_xscroll_state
-	clc
-	adc direntry_xscroll
-	sta direntry_xscroll
-	bne +
-	lda #$01
-	sta direntry_xscroll_state
-+	rts
+; jump table to different data type edit dialogs
+menu_tab_edit_value_dialogs:
+.word menu_value_dialog_dummy
+.word menu_value_dialog_u8
+.word menu_value_dialog_u16
+.word menu_value_dialog_string
+.word menu_value_dialog_kv8
+.word menu_value_dialog_kv16
+.word menu_value_dialog_file
+.word menu_value_dialog_time

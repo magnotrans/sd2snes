@@ -58,8 +58,8 @@ static char *curchar;
 
 /* Word lists */
 static char command_words[] =
-  "cd\0reset\0sreset\0dir\0ls\0test\0resume\0loadrom\0loadraw\0saveraw\0put\0rm\0mkdir\0d4\0vmode\0mapper\0settime\0time\0setfeature\0hexdump\0w8\0w16\0";
-enum { CMD_CD = 0, CMD_RESET, CMD_SRESET, CMD_DIR, CMD_LS, CMD_TEST, CMD_RESUME, CMD_LOADROM, CMD_LOADRAW, CMD_SAVERAW, CMD_PUT, CMD_RM, CMD_MKDIR, CMD_D4, CMD_VMODE, CMD_MAPPER, CMD_SETTIME, CMD_TIME, CMD_SETFEATURE, CMD_HEXDUMP, CMD_W8, CMD_W16 };
+  "cd\0reset\0sreset\0dir\0ls\0test\0exit\0loadrom\0loadraw\0saveraw\0put\0rm\0mkdir\0d4\0vmode\0mapper\0settime\0time\0setfeature\0hexdump\0w8\0w16\0memset\0cheat\0fpgaconf\0dspfeat\0bsregs\0gameloop\0dacboost\0";
+enum { CMD_CD = 0, CMD_RESET, CMD_SRESET, CMD_DIR, CMD_LS, CMD_TEST, CMD_EXIT, CMD_LOADROM, CMD_LOADRAW, CMD_SAVERAW, CMD_PUT, CMD_RM, CMD_MKDIR, CMD_D4, CMD_VMODE, CMD_MAPPER, CMD_SETTIME, CMD_TIME, CMD_SETFEATURE, CMD_HEXDUMP, CMD_W8, CMD_W16, CMD_MEMSET, CMD_CHEAT, CMD_FPGACONF, CMD_DSPFEAT, CMD_BSREGS, CMD_GAMELOOP, CMD_DACBOOST };
 
 /* ------------------------------------------------------------------------- */
 /*   Parse functions                                                         */
@@ -85,6 +85,7 @@ static int32_t parse_unsigned(uint32_t lower, uint32_t upper, uint8_t base) {
     return -2;
   }
 
+  errno = 0;
   result = strtoul(curchar, &end, base);
   if ((*end != ' ' && *end != 0) || errno != 0) {
     printf("Invalid numeric argument\n");
@@ -138,7 +139,7 @@ static int8_t parse_wordlist(char *wordlist) {
         return -1;
       }
 
-      if (tolower(c) != tolower(*cur)) {
+      if (tolower((int)c) != tolower((int)*cur)) {
         // Check for end-of-word
         if (cur != curchar && (*cur == ' ' || *cur == 0)) {
           // Partial match found, return that
@@ -233,16 +234,16 @@ static void cmd_show_directory(void) {
   DIR dh;
   FILINFO finfo;
   uint8_t *name;
+  uint8_t buf[256];
+  f_getcwd((TCHAR*)buf, 255);
 
-  f_getcwd((TCHAR*)file_lfn, 255);
-
-  res = f_opendir(&dh, (TCHAR*)file_lfn);
+  res = f_opendir(&dh, (TCHAR*)buf);
   if (res != FR_OK) {
     printf("f_opendir failed, result %d\n",res);
     return;
   }
 
-  finfo.lfname = (TCHAR*)file_lfn;
+  finfo.lfname = (TCHAR*)buf;
   finfo.lfsize = 255;
 
   do {
@@ -269,7 +270,7 @@ static void cmd_show_directory(void) {
       strlwr((char *)name);
     }
 
-    printf("%s",name);
+    printf("%s [%s] (%ld)",finfo.lfname, finfo.fname, finfo.fsize);
 
     /* Directory indicator (Unix-style) */
     if (finfo.fattrib & AM_DIR)
@@ -279,10 +280,10 @@ static void cmd_show_directory(void) {
   } while (finfo.fname[0]);
 }
 
-
 static void cmd_loadrom(void) {
   uint32_t address = 0;
   uint8_t flags = LOADROM_WITH_SRAM | LOADROM_WITH_RESET;
+  strncpy((char*)file_lfn, (const char*)curchar, 255);
   load_rom((uint8_t*)curchar, address, flags);
 }
 
@@ -398,7 +399,7 @@ void cmd_time(void) {
 }
 
 void cmd_setfeature(void) {
-  uint8_t feat = parse_unsigned(0, 255, 16);
+  uint16_t feat = parse_unsigned(0, 65535, 16);
   fpga_set_features(feat);
 }
 
@@ -420,6 +421,78 @@ void cmd_w16(void) {
   sram_writeshort(val, offset);
 }
 
+void cmd_memset(void) {
+  uint32_t offset = parse_unsigned(0, 16777215, 16);
+  uint32_t len = parse_unsigned(0, 16777216, 16);
+  uint8_t val = parse_unsigned(0, 255, 16);
+  sram_memset(offset, len, val);
+}
+
+void cmd_cheat(void) {
+  int8_t index = parse_unsigned(0, 7, 10);
+  uint32_t code = parse_unsigned(0, 0xffffffff, 16);
+  fpga_write_cheat(index, code);
+}
+
+void cmd_test(void) {
+  int i;
+  uint8_t databuf[512];
+  fpga_set_snescmd_addr(0);
+  for(i=0; i<512; i++) {
+    databuf[i]=fpga_read_snescmd();
+  }
+  uart_trace(databuf, 0, 512);
+}
+
+void cmd_fpgaconf(void) {
+  if(!strncmp(curchar, "ROM", 3)) {
+    fpga_rompgm();
+    set_rom_mask(0x3fffff);
+  } else {
+    fpga_pgm((uint8_t*)curchar);
+  }
+}
+
+void cmd_dspfeat(void) {
+  int32_t feat = parse_unsigned(0, 0xffff, 16);
+  if(feat != -1) fpga_set_dspfeat((uint16_t) feat);
+}
+
+void cmd_bsregs(void) {
+  uint8_t set = parse_unsigned(0, 0xff, 16);
+  uint8_t reset = parse_unsigned(0, 0xff, 16);
+  set_bsx_regs(set, reset);
+}
+
+static void cmd_gameloop(void) {
+  snes_set_mcu_cmd(SNES_CMD_GAMELOOP);
+}
+
+static void cmd_dacboost(void) {
+  int8_t boost = parse_unsigned(0, 255, 16);
+  if(boost != -1) fpga_set_dac_boost(boost);
+}
+
+static void cmd_cd(void) {
+#if _FS_RPATH
+  FRESULT res;
+  uint8_t buf[256];
+  if (strlen(curchar) == 0) {
+    f_getcwd((TCHAR*)buf, 255);
+    printf("%s\n", buf);
+  } else {
+    res = f_chdir((const TCHAR *)curchar);
+    if (res != FR_OK) {
+      printf("chdir %s failed with result %d\n",curchar,res);
+    } else {
+      printf("Ok.\n");
+    }
+  }
+#else
+  printf("cd not supported.\n");
+#endif
+}
+
 /* ------------------------------------------------------------------------- */
 /*   CLI interface functions                                                 */
 /* ------------------------------------------------------------------------- */
@@ -439,20 +512,6 @@ void cli_loop(void) {
     curchar = getline(">");
     printf("\n");
 
-    /* Process medium changes before executing the command */
-    if (disk_state != DISK_OK && disk_state != DISK_REMOVED) {
-      FRESULT res;
-
-      printf("Medium changed... ");
-      res = f_mount(0,&fatfs);
-      if (res != FR_OK) {
-        printf("Failed to mount new medium, result %d\n",res);
-      } else {
-        printf("Ok\n");
-      }
-
-    }
-
     /* Remove whitespace */
     while (*curchar == ' ') curchar++;
     while (strlen(curchar) > 0 && curchar[strlen(curchar)-1] == ' ')
@@ -467,109 +526,119 @@ void cli_loop(void) {
     if (command < 0)
       continue;
 
-
-    FRESULT res;
     switch (command) {
-    case CMD_CD:
-#if _FS_RPATH
-      if (strlen(curchar) == 0) {
-        f_getcwd((TCHAR*)file_lfn, 255);
-        printf("%s\n",file_lfn);
+      case CMD_CD:
+        cmd_cd();
         break;
-      }
 
-      res = f_chdir((const TCHAR *)curchar);
-      if (res != FR_OK) {
-        printf("chdir %s failed with result %d\n",curchar,res);
-      } else {
-        printf("Ok.\n");
-      }
-#else
-      printf("cd not supported.\n");
-      res;
-#endif
-    break;
-    case CMD_RESET:
-      cmd_reset();
-      break;
+      case CMD_RESET:
+        cmd_reset();
+        break;
 
-    case CMD_SRESET:
-      cmd_sreset();
-      break;
+      case CMD_SRESET:
+        cmd_sreset();
+        break;
 
-    case CMD_DIR:
-    case CMD_LS:
-      cmd_show_directory();
-      break;
+      case CMD_DIR:
+      case CMD_LS:
+        cmd_show_directory();
+        break;
 
-    case CMD_RESUME:
-      return;
-      break;
+      case CMD_EXIT:
+        return;
+        break;
 
-    case CMD_LOADROM:
-      cmd_loadrom();
-      break;
+      case CMD_LOADROM:
+        cmd_loadrom();
+        break;
 
-    case CMD_LOADRAW:
-      cmd_loadraw();
-      break;
+      case CMD_LOADRAW:
+        cmd_loadraw();
+        break;
 
-    case CMD_SAVERAW:
-      cmd_saveraw();
-      break;
+      case CMD_SAVERAW:
+        cmd_saveraw();
+        break;
 
-    case CMD_RM:
-      cmd_rm();
-      break;
+      case CMD_RM:
+        cmd_rm();
+        break;
 
-    case CMD_MKDIR:
-      cmd_mkdir();
-      break;
+      case CMD_MKDIR:
+        cmd_mkdir();
+        break;
 
-    case CMD_D4:
-      cmd_d4();
-      break;
+      case CMD_D4:
+        cmd_d4();
+        break;
 
-    case CMD_VMODE:
-      cmd_vmode();
-      break;
+      case CMD_VMODE:
+        cmd_vmode();
+        break;
 
-    case CMD_PUT:
-      cmd_put();
-      break;
+      case CMD_PUT:
+        cmd_put();
+        break;
 
-    case CMD_MAPPER:
-      cmd_mapper();
-      break;
+      case CMD_MAPPER:
+        cmd_mapper();
+        break;
 
-    case CMD_SETTIME:
-      cmd_settime();
-      break;
+      case CMD_SETTIME:
+        cmd_settime();
+        break;
 
-    case CMD_TIME:
-      cmd_time();
-      break;
+      case CMD_TIME:
+        cmd_time();
+        break;
 
-    case CMD_TEST:
-      testbattery();
-      break;
+      case CMD_TEST:
+        cmd_test();
+        break;
 
-    case CMD_SETFEATURE:
-      cmd_setfeature();
-      break;
+      case CMD_SETFEATURE:
+        cmd_setfeature();
+        break;
 
-    case CMD_HEXDUMP:
-      cmd_hexdump();
-      break;
+      case CMD_HEXDUMP:
+        cmd_hexdump();
+        break;
 
-    case CMD_W8:
-      cmd_w8();
-      break;
+      case CMD_W8:
+        cmd_w8();
+        break;
 
-    case CMD_W16:
-      cmd_w16();
-      break;
+      case CMD_W16:
+        cmd_w16();
+        break;
+
+      case CMD_MEMSET:
+        cmd_memset();
+        break;
+
+      case CMD_CHEAT:
+        cmd_cheat();
+        break;
+
+      case CMD_FPGACONF:
+        cmd_fpgaconf();
+        break;
+
+      case CMD_DSPFEAT:
+        cmd_dspfeat();
+        break;
+
+      case CMD_BSREGS:
+        cmd_bsregs();
+        break;
+
+      case CMD_GAMELOOP:
+        cmd_gameloop();
+        break;
+
+      case CMD_DACBOOST:
+        cmd_dacboost();
+        break;
     }
-
   }
 }

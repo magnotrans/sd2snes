@@ -13,6 +13,8 @@
 #include "bits.h"
 #include "fpga_spi.h"
 #include "memory.h"
+#include "snes.h"
+#include "fileops.h"
 
 #define MAX_CARDS 1
 
@@ -403,7 +405,7 @@ int send_command_fast(uint8_t* cmd, uint8_t* rsp, uint8_t* buf){
     while(i--) { /* process response */
       cmdshift = 8;
       do {
-	if(dat) {
+        if(dat) {
           if(!(BITBAND(SD_DAT0REG->FIOPIN, SD_DAT0PIN))) {
             printf("data start during response\n");
             j=datcnt;
@@ -478,15 +480,16 @@ int send_command_fast(uint8_t* cmd, uint8_t* rsp, uint8_t* buf){
           }
           if(sd_offload_partial_end != 512) {
             sd_offload_partial_end |= 0x8000;
+            during_blocktrans = TRANS_MID;
           }
-          DBG_SD printf("new partial %d - %d\n", sd_offload_partial_start, sd_offload_partial_end);
+          DBG_SD_OFFLOAD printf("new partial %d - %d\n", sd_offload_partial_start, sd_offload_partial_end);
           fpga_set_sddma_range(sd_offload_partial_start, sd_offload_partial_end);
           fpga_sddma(sd_offload_tgt, 1);
 //          sd_offload_partial=0;
-          last_offset=sd_offload_partial_end;
+          last_offset = sd_offload_partial_end & 0x1ff;
         } else {
           fpga_sddma(sd_offload_tgt, 0);
-          last_offset=0;
+          last_offset = 0;
         }
         state=CMD_RSP;
         return rsplen;
@@ -625,7 +628,7 @@ int stream_datablock(uint8_t *buf) {
       if(sd_offload_partial_end != 512) {
         sd_offload_partial_end |= 0x8000;
       }
-      DBG_SD printf("str partial %d - %d\n", sd_offload_partial_start, sd_offload_partial_end);
+      DBG_SD_OFFLOAD printf("str partial %d - %d\n", sd_offload_partial_start, sd_offload_partial_end);
       fpga_set_sddma_range(sd_offload_partial_start, sd_offload_partial_end);
       fpga_sddma(sd_offload_tgt, 1);
     } else {
@@ -779,7 +782,7 @@ void send_datablock(uint8_t *buf) {
 }
 
 void read_block(uint32_t address, uint8_t *buf) {
-  DBG_SD printf("read_block addr=%08lx last_addr=%08lx  offld=%d/%d offst=%04x offed=%04x last_off=%04x\n", address, last_block, sd_offload, sd_offload_partial, sd_offload_partial_start, sd_offload_partial_end, last_offset);
+  DBG_SD_OFFLOAD printf("read_block trans=%d addr=%08lx last_addr=%08lx  offld=%d/%d offst=%04x offed=%04x last_off=%04x\n", during_blocktrans, address, last_block, sd_offload, sd_offload_partial, sd_offload_partial_start, sd_offload_partial_end, last_offset);
   if(during_blocktrans == TRANS_READ && (last_block == address-1)) {
 //uart_putc('r');
 #ifdef CONFIG_SD_DATACRC
@@ -811,7 +814,7 @@ void read_block(uint32_t address, uint8_t *buf) {
   } else {
     if(during_blocktrans) {
 //      uart_putc('_');
-//printf("nonseq read (%lx -> %lx), restarting transmission\n", last_block, address);
+      DBG_SD_OFFLOAD printf("nonseq read (%lx -> %lx), restarting transmission\n", last_block, address);
       /* send STOP_TRANSMISSION to end an open READ/WRITE_MULTIPLE_BLOCK */
       cmd_fast(STOP_TRANSMISSION, 0, 0x61, NULL, rsp);
     }
@@ -889,7 +892,7 @@ DRESULT sdn_ioctl(BYTE drv, BYTE cmd, void *buffer) {
 }
 DRESULT disk_ioctl(BYTE drv, BYTE cmd, void *buffer) __attribute__ ((weak, alias("sdn_ioctl")));
 
-DRESULT sdn_read(BYTE drv, BYTE *buffer, DWORD sector, BYTE count) {
+DRESULT sdn_read(BYTE drv, BYTE *buffer, DWORD sector, UINT count) {
   uint8_t sec;
   if(drv >= MAX_CARDS) {
     return RES_PARERR;
@@ -902,7 +905,7 @@ DRESULT sdn_read(BYTE drv, BYTE *buffer, DWORD sector, BYTE count) {
   readled(0);
   return RES_OK;
 }
-DRESULT disk_read(BYTE drv, BYTE *buffer, DWORD sector, BYTE count) __attribute__ ((weak, alias("sdn_read")));
+DRESULT disk_read(BYTE drv, BYTE *buffer, DWORD sector, UINT count) __attribute__ ((weak, alias("sdn_read")));
 
 DSTATUS sdn_initialize(BYTE drv) {
 
@@ -1010,15 +1013,18 @@ void disk_init(void) __attribute__ ((weak, alias("sdn_init")));
 
 
 DSTATUS sdn_status(BYTE drv) {
+  DSTATUS status = 0;
   if (SDCARD_DETECT) {
+    if (disk_state == DISK_CHANGED) {
+      status |= STA_NOINIT;
+    }
     if (SDCARD_WP) {
-      return STA_PROTECT;
-    } else {
-      return RES_OK;
+      status |= STA_PROTECT;
     }
   } else {
-    return STA_NOINIT|STA_NODISK;
+    status |= STA_NODISK;
   }
+  return status;
 }
 DSTATUS disk_status(BYTE drv) __attribute__ ((weak, alias("sdn_status")));
 
@@ -1056,7 +1062,7 @@ DRESULT sdn_getinfo(BYTE drv, BYTE page, void *buffer) {
 }
 DRESULT disk_getinfo(BYTE drv, BYTE page, void *buffer) __attribute__ ((weak, alias("sdn_getinfo")));
 
-DRESULT sdn_write(BYTE drv, const BYTE *buffer, DWORD sector, BYTE count) {
+DRESULT sdn_write(BYTE drv, const BYTE *buffer, DWORD sector, UINT count) {
   uint8_t sec;
   uint8_t *buf = (uint8_t*)buffer;
   if(drv >= MAX_CARDS) {
@@ -1074,7 +1080,7 @@ DRESULT sdn_write(BYTE drv, const BYTE *buffer, DWORD sector, BYTE count) {
   return RES_OK;
 }
 
-DRESULT disk_write(BYTE drv, const BYTE *buffer, DWORD sector, BYTE count) __attribute__ ((weak, alias("sdn_write")));
+DRESULT disk_write(BYTE drv, const BYTE *buffer, DWORD sector, UINT count) __attribute__ ((weak, alias("sdn_write")));
 
 /* Detect changes of SD card 0 */
 void sdn_changed() {
@@ -1108,7 +1114,7 @@ void sdn_gettacc(uint32_t *tacc_max, uint32_t *tacc_avg) {
     sd_offload=1;
     sdn_read(0, NULL, i*sec_step, 1);
   }
-  for (i=0; i < numread && sram_readbyte(SRAM_CMD_ADDR) != 0x00 && disk_state != DISK_REMOVED; i++) {
+  for (i=0; i < numread && (snes_get_mcu_cmd() == SNES_CMD_SYSINFO) && disk_state != DISK_REMOVED; i++) {
   /* reset timer */
     LPC_RIT->RICTRL = 0;
     sd_offload_tgt=2;
@@ -1140,4 +1146,3 @@ void sdn_gettacc(uint32_t *tacc_max, uint32_t *tacc_avg) {
     *tacc_avg = time_avg/(CONFIG_CPU_FREQUENCY / 1000000)-114;
   }
 }
-

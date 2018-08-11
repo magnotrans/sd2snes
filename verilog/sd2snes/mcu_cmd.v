@@ -1,21 +1,21 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date:    21:57:50 08/25/2009 
-// Design Name: 
-// Module Name:    mcu_cmd 
-// Project Name: 
-// Target Devices: 
-// Tool versions: 
-// Description: 
+// Company:
+// Engineer:
 //
-// Dependencies: 
+// Create Date:    21:57:50 08/25/2009
+// Design Name:
+// Module Name:    mcu_cmd
+// Project Name:
+// Target Devices:
+// Tool versions:
+// Description:
 //
-// Revision: 
+// Dependencies:
+//
+// Revision:
 // Revision 0.01 - File Created
-// Additional Comments: 
+// Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
 module mcu_cmd(
@@ -25,9 +25,9 @@ module mcu_cmd(
   input [7:0] cmd_data,
   input [7:0] param_data,
   output [2:0] mcu_mapper,
-  output mcu_rrq,
+  output reg mcu_rrq = 0,
   output mcu_write,
-  output mcu_wrq,
+  output reg mcu_wrq = 0,
   input mcu_rq_rdy,
   output [7:0] mcu_data_out,
   input [7:0] mcu_data_in,
@@ -50,16 +50,19 @@ module mcu_cmd(
   output [10:0] SD_DMA_PARTIAL_END,
   output reg SD_DMA_START_MID_BLOCK,
   output reg SD_DMA_END_MID_BLOCK,
-  
+
   // DAC
   output [10:0] dac_addr_out,
   input DAC_STATUS,
-  output dac_play_out,
-  output dac_reset_out,
+  output reg dac_play_out = 0,
+  output reg dac_reset_out = 0,
+  output reg [2:0] dac_vol_select_out = 3'b000,
+  output reg dac_palmode_out = 0,
+  output reg [8:0] dac_ptr_out = 0,
 
   // MSU data
   output [13:0] msu_addr_out,
-  input [6:0] MSU_STATUS,
+  input [7:0] MSU_STATUS,
   output [5:0] msu_status_reset_out,
   output [5:0] msu_status_set_out,
   output msu_status_reset_we,
@@ -93,14 +96,25 @@ module mcu_cmd(
   output reg dspx_reset_out,
 
   // feature enable
-  output reg [7:0] featurebits_out,
-  
+  output reg [15:0] featurebits_out,
+
   output reg region_out,
   // SNES sync/clk
   input snes_sysclk,
-  
-  // debug
-  output DBG_mcu_nextaddr
+
+  // snes cmd interface
+  input [7:0] snescmd_data_in,
+  output reg [7:0] snescmd_data_out,
+  output reg [8:0] snescmd_addr_out,
+  output reg snescmd_we_out,
+
+  // cheat configuration
+  output reg [7:0] cheat_pgm_idx_out,
+  output reg [31:0] cheat_pgm_data_out,
+  output reg cheat_pgm_we_out,
+
+  // DSP core features
+  output reg [15:0] dsp_feat_out = 16'h0000
 );
 
 initial begin
@@ -125,14 +139,11 @@ reg [2:0] MAPPER_BUF;
 reg [23:0] ADDR_OUT_BUF;
 reg [10:0] DAC_ADDR_OUT_BUF;
 reg [7:0] DAC_VOL_OUT_BUF;
-reg DAC_VOL_LATCH_BUF;
-reg DAC_PLAY_OUT_BUF;
-reg DAC_RESET_OUT_BUF;
 reg [13:0] MSU_ADDR_OUT_BUF;
 reg [13:0] MSU_PTR_OUT_BUF;
 reg [5:0] msu_status_set_out_buf;
 reg [5:0] msu_status_reset_out_buf;
-reg msu_status_reset_we_buf;
+reg msu_status_reset_we_buf = 0;
 reg MSU_RESET_OUT_BUF;
 
 reg [7:0] bsx_regs_set_out_buf;
@@ -151,11 +162,14 @@ reg [7:0] MCU_DATA_OUT_BUF;
 reg [7:0] MCU_DATA_IN_BUF;
 reg [2:0] mcu_nextaddr_buf;
 
+reg [7:0] dsp_feat_tmp;
+reg [7:0] feat_tmp;
+
 wire mcu_nextaddr;
 
 reg DAC_STATUSr;
 reg SD_DMA_STATUSr;
-reg [6:0] MSU_STATUSr;
+reg [7:0] MSU_STATUSr;
 always @(posedge clk) begin
   DAC_STATUSr <= DAC_STATUS;
   SD_DMA_STATUSr <= SD_DMA_STATUS;
@@ -192,6 +206,11 @@ end
 
 // command interpretation
 always @(posedge clk) begin
+  snescmd_we_out <= 1'b0;
+  cheat_pgm_we_out <= 1'b0;
+  dac_reset_out <= 1'b0;
+  MSU_RESET_OUT_BUF <= 1'b0;
+
   if (cmd_ready) begin
     case (cmd_data[7:4])
       4'h3: // select mapper
@@ -245,6 +264,40 @@ always @(posedge clk) begin
         endcase
       8'h9x:
         MCU_DATA_OUT_BUF <= param_data;
+      8'hd0:
+        case (spi_byte_cnt)
+          32'h2:
+            snescmd_addr_out[7:0] <= param_data;
+          32'h3:
+            snescmd_addr_out[8] <= param_data[0];
+        endcase
+      8'hd1:
+        snescmd_addr_out <= snescmd_addr_out + 1;
+      8'hd2: begin
+        case (spi_byte_cnt)
+          32'h2:
+            snescmd_we_out <= 1'b1;
+          32'h3:
+            snescmd_addr_out <= snescmd_addr_out + 1;
+        endcase
+        snescmd_data_out <= param_data;
+      end
+      8'hd3: begin
+        case (spi_byte_cnt)
+          32'h2:
+            cheat_pgm_idx_out <= param_data[2:0];
+          32'h3:
+            cheat_pgm_data_out[31:24] <= param_data;
+          32'h4:
+            cheat_pgm_data_out[23:16] <= param_data;
+          32'h5:
+            cheat_pgm_data_out[15:8] <= param_data;
+          32'h6: begin
+            cheat_pgm_data_out[7:0] <= param_data;
+            cheat_pgm_we_out <= 1'b1;
+          end
+        endcase
+      end
       8'he0:
         case (spi_byte_cnt)
           32'h2: begin
@@ -258,15 +311,17 @@ always @(posedge clk) begin
             msu_status_reset_we_buf <= 1'b0;
         endcase
       8'he1: // pause DAC
-        DAC_PLAY_OUT_BUF <= 1'b0;
+        dac_play_out <= 1'b0;
       8'he2: // resume DAC
-        DAC_PLAY_OUT_BUF <= 1'b1;
+        dac_play_out <= 1'b1;
       8'he3: // reset DAC (set DAC playback address = 0)
         case (spi_byte_cnt)
           32'h2:
-            DAC_RESET_OUT_BUF <= 1'b1;
-          32'h3:
-            DAC_RESET_OUT_BUF <= 1'b0;
+            dac_ptr_out[8] <= param_data[0];
+          32'h3: begin
+            dac_ptr_out[7:0] <= param_data;
+            dac_reset_out <= 1'b1; // reset by default value, see above
+          end
         endcase
       8'he4: // reset MSU read buffer pointer
         case (spi_byte_cnt)
@@ -278,8 +333,6 @@ always @(posedge clk) begin
             MSU_PTR_OUT_BUF[7:0] <= param_data;
             MSU_RESET_OUT_BUF <= 1'b1;
           end
-          32'h4:
-            MSU_RESET_OUT_BUF <= 1'b0;
         endcase
       8'he5:
         case (spi_byte_cnt)
@@ -352,14 +405,27 @@ always @(posedge clk) begin
             dspx_dat_addr_out <= dspx_dat_addr_out + 1;
           end
         endcase
-      8'heb: // put DSPx into reset
-        dspx_reset_out <= 1'b1;
-      8'hec: // release DSPx reset
-        dspx_reset_out <= 1'b0;
+      8'heb: // control DSPx reset
+        dspx_reset_out <= param_data[0];
+      8'hec:
+        begin // set DAC properties
+          dac_vol_select_out <= param_data[2:0];
+          dac_palmode_out <= param_data[7];
+        end
       8'hed:
-        featurebits_out <= param_data;
+        case (spi_byte_cnt)
+          32'h2: feat_tmp <= param_data;
+          32'h3: featurebits_out <= {feat_tmp, param_data};
+        endcase
       8'hee:
         region_out <= param_data[0];
+      8'hef:
+        case (spi_byte_cnt)
+          32'h2: dsp_feat_tmp <= param_data[7:0];
+          32'h3: begin
+            dsp_feat_out <= {dsp_feat_tmp, param_data[7:0]};
+          end
+        endcase
     endcase
   end
 end
@@ -367,43 +433,42 @@ end
 always @(posedge clk) begin
   if(param_ready && cmd_data[7:4] == 4'h0)  begin
     case (cmd_data[1:0])
-	 2'b01: begin
-		case (spi_byte_cnt)
-		  32'h2: begin
-			 DAC_ADDR_OUT_BUF[10:8] <= param_data[2:0];
-			 DAC_ADDR_OUT_BUF[7:0] <= 8'b0;
-		  end
-		  32'h3:
-			 DAC_ADDR_OUT_BUF[7:0] <= param_data;
-		endcase
-	 end
-	 2'b10: begin
-		case (spi_byte_cnt)
-		  32'h2: begin
-			 MSU_ADDR_OUT_BUF[13:8] <= param_data[5:0];
-			 MSU_ADDR_OUT_BUF[7:0] <= 8'b0;
-		  end
-		  32'h3:
-			 MSU_ADDR_OUT_BUF[7:0] <= param_data;
-		endcase
-	 end
-	 default:
-		case (spi_byte_cnt)
-		  32'h2: begin
-			 ADDR_OUT_BUF[23:16] <= param_data;
-			 ADDR_OUT_BUF[15:0] <= 16'b0;
-		  end
-		  32'h3:
-			 ADDR_OUT_BUF[15:8] <= param_data;
-		  32'h4:
-			 ADDR_OUT_BUF[7:0] <= param_data;
-		endcase
-	 endcase
+      2'b01: begin
+        case (spi_byte_cnt)
+          32'h2: begin
+            DAC_ADDR_OUT_BUF[10:8] <= param_data[2:0];
+            DAC_ADDR_OUT_BUF[7:0] <= 8'b0;
+          end
+          32'h3:
+            DAC_ADDR_OUT_BUF[7:0] <= param_data;
+        endcase
+      end
+      2'b10: begin
+        case (spi_byte_cnt)
+          32'h2: begin
+            MSU_ADDR_OUT_BUF[13:8] <= param_data[5:0];
+            MSU_ADDR_OUT_BUF[7:0] <= 8'b0;
+          end
+          32'h3:
+            MSU_ADDR_OUT_BUF[7:0] <= param_data;
+        endcase
+      end
+      default:
+        case (spi_byte_cnt)
+          32'h2: begin
+            ADDR_OUT_BUF[23:16] <= param_data;
+            ADDR_OUT_BUF[15:0] <= 16'b0;
+          end
+          32'h3:
+            ADDR_OUT_BUF[15:8] <= param_data;
+          32'h4:
+            ADDR_OUT_BUF[7:0] <= param_data;
+        endcase
+    endcase
   end else if (SD_DMA_NEXTADDR | (mcu_nextaddr & (cmd_data[7:5] == 3'h4)
-                         && (cmd_data[3])
-                         && (spi_byte_cnt >= (32'h1+cmd_data[4])))
-     )
-  begin
+                               && (cmd_data[3])
+                               && (spi_byte_cnt >= (32'h1+cmd_data[4])))
+  ) begin
     case (SD_DMA_TGTr)
       2'b00: ADDR_OUT_BUF <= ADDR_OUT_BUF + 1;
       2'b01: DAC_ADDR_OUT_BUF <= DAC_ADDR_OUT_BUF + 1;
@@ -417,14 +482,16 @@ always @(posedge clk) begin
   if (cmd_data[7:4] == 4'h8 && mcu_nextaddr)
     MCU_DATA_IN_BUF <= mcu_data_in;
   else if (cmd_ready | param_ready /* bit_cnt == 7 */) begin
+    if (cmd_data[7:4] == 4'hA)
+      MCU_DATA_IN_BUF <= snescmd_data_in;
     if (cmd_data[7:0] == 8'hF0)
       MCU_DATA_IN_BUF <= 8'hA5;
     else if (cmd_data[7:0] == 8'hF1)
       case (spi_byte_cnt[0])
         1'b1: // buffer status (1st byte)
-          MCU_DATA_IN_BUF <= {SD_DMA_STATUSr, DAC_STATUSr, MSU_STATUSr[6], 5'b0};
+          MCU_DATA_IN_BUF <= {SD_DMA_STATUSr, DAC_STATUSr, MSU_STATUSr[7], 5'b0};
         1'b0: // control status (2nd byte)
-          MCU_DATA_IN_BUF <= {2'b0, MSU_STATUSr[5:0]};
+          MCU_DATA_IN_BUF <= {1'b0, MSU_STATUSr[6:0]};
       endcase
     else if (cmd_data[7:0] == 8'hF2)
       case (spi_byte_cnt)
@@ -461,6 +528,8 @@ always @(posedge clk) begin
       endcase
     else if (cmd_data[7:0] == 8'hFF)
       MCU_DATA_IN_BUF <= param_data;
+    else if (cmd_data[7:0] == 8'hD1)
+      MCU_DATA_IN_BUF <= snescmd_data_in;
   end
 end
 
@@ -469,66 +538,33 @@ always @(posedge clk) begin
   mcu_nextaddr_buf <= {mcu_nextaddr_buf[1:0], mcu_rq_rdy};
 end
 
-parameter ST_RQ = 2'b01;
-parameter ST_IDLE = 2'b10;
-
-reg [1:0] rrq_state;
-initial rrq_state = ST_IDLE;
-reg mcu_rrq_r;
-
-reg [1:0] wrq_state;
-initial wrq_state = ST_IDLE;
-reg mcu_wrq_r;
-
 always @(posedge clk) begin
-  case(rrq_state)
-    ST_IDLE: begin
-	   if((param_ready | cmd_ready) && cmd_data[7:4] == 4'h8) begin
-		  mcu_rrq_r <= 1'b1;
-		  rrq_state <= ST_RQ;
-		end else
-		  rrq_state <= ST_IDLE;
-	 end
-	 ST_RQ: begin
-	   mcu_rrq_r <= 1'b0;
-		rrq_state <= ST_IDLE;
-	 end
-  endcase
+  mcu_rrq <= 1'b0;
+  if((param_ready | cmd_ready) && cmd_data[7:4] == 4'h8) begin
+    mcu_rrq <= 1'b1;
+  end
 end
 
 always @(posedge clk) begin
-  case(wrq_state)
-    ST_IDLE: begin
-	   if(param_ready && cmd_data[7:4] == 4'h9) begin
-		  mcu_wrq_r <= 1'b1;
-		  wrq_state <= ST_RQ;
-		end else
-		  wrq_state <= ST_IDLE;
-	 end
-	 ST_RQ: begin
-	   mcu_wrq_r <= 1'b0;
-		wrq_state <= ST_IDLE;
-	 end
-  endcase
+  mcu_wrq <= 1'b0;
+  if(param_ready && cmd_data[7:4] == 4'h9) begin
+    mcu_wrq <= 1'b1;
+  end
 end
 
 // trigger for nextaddr
 assign mcu_nextaddr = mcu_nextaddr_buf == 2'b01;
 
-assign mcu_rrq = mcu_rrq_r;
-assign mcu_wrq = mcu_wrq_r;
 assign mcu_write = SD_DMA_STATUS
                    ?(SD_DMA_TGTr == 2'b00
-                     ?SD_DMA_SRAM_WE
-                     :1'b1
+                     ? SD_DMA_SRAM_WE
+                     : 1'b1
                     )
                    : 1'b1;
 
 assign addr_out = ADDR_OUT_BUF;
 assign dac_addr_out = DAC_ADDR_OUT_BUF;
 assign msu_addr_out = MSU_ADDR_OUT_BUF;
-assign dac_play_out = DAC_PLAY_OUT_BUF;
-assign dac_reset_out = DAC_RESET_OUT_BUF;
 assign msu_status_reset_we = msu_status_reset_we_buf;
 assign msu_status_reset_out = msu_status_reset_out_buf;
 assign msu_status_set_out = msu_status_set_out_buf;

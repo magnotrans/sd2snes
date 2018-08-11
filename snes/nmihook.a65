@@ -1,0 +1,98 @@
+#include "memmap.i65"
+
+; *=$2A04
+nmihook:
+  php
+  rep #$20 : .al
+  pha
+  lda @$004218 ; initial backup as early as possible
+  sta @NMI_PAD
+  sep #$20 : .as
+- bra -        ; branch1 filled in by FPGA
+; rules for branch tgt:
+;        if (buttons disabled OR manual read in progress) AND wram patching enabled: nmi_patches
+;        if (buttons disabled OR manual read in progress) AND wram patching disabled: nmi_exit
+;        if buttons enabled AND AJR enabled AND CMD != 0: nmi_echocmd
+;        if buttons enabled AND AJR enabled AND CMD == 0 AND wram patching enabled: nmi_patches
+;        if buttons enabled AND AJR enabled AND CMD == 0 AND wram patching disabled: nmi_exit
+;        if buttons enabled AND AJR disabled: nmi_manual_read
+
+; FPGA state:
+;        - wram patching enabled (MCU side: cheats enabled AND wram cheats present) AND wram gate
+;        - wram patching gate (FPGA side toggle)
+;        - buttons enabled
+;        - manual read in progress
+;        - AJR enabled
+
+; wram patching gate (same as cheat enable):
+;        - if buttons enabled and CMD = $83: disable
+;        - if buttons enabled and CMD = $82: enable
+
+nmi_manual_read:
+  phb
+  phd
+  lda #$2b
+  xba
+  lda #$00
+  tcd
+  phk
+  plb
+  lda #$01
+  sta $4016
+  stz $4016
+  rep #$10 : .xl
+  phx
+  ldx #$0008
+- lda $4016
+  ror
+  rol <NMI_PAD+1
+  dex
+  bne -
+  ldx #$0008
+- lda $4016
+  ror
+  rol <NMI_PAD
+  dex
+  bne -
+  plx
+  pld
+  plb
+; button combination -> command is mapped by FPGA
+nmi_echocmd: ; echo cmd to MCU for misc handling
+  lda @NMI_CMD
+  sta @MCU_CMD
+; 2nd branch point to determine whether to jump to WRAM cheats,
+; halt system (for reset), or continue
+- bra - ; nmi_patches, nmi_stop, or nmi_exit
+nmi_patches:
+  jsr NMI_WRAM_CHEATS
+nmi_exit:
+; clean up
+  sta @NMI_VECT_DISABLE
+  rep #$20 : .al
+  pla
+  plp
+  jmp ($ff77) ; '77' is replaced by FPGA depending on hook entry
+
+nmi_stop:
+  sei
+  sep #$20 : .as
+  phk
+  plb
+  stz $4200
+  lda #$80
+  sta $2100
+- bra -
+
+resethook: ; EMULATION MODE
+  .as : .xs
+- lda $4212
+  bpl -
+- lda $4212
+  bmi -
+  lda $213f
+  bmi resethook
+  stz NMI_VECT_DISABLE
+  jmp ($fffc)
+
+.byt "bram_end"

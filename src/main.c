@@ -29,8 +29,8 @@
 #include "sysinfo.h"
 #include "cfg.h"
 
-#define EMC0TOGGLE	(3<<4)
-#define MR0R		(1<<1)
+#define EMC0TOGGLE        (3<<4)
+#define MR0R              (1<<1)
 
 int i;
 
@@ -41,23 +41,39 @@ int sd_offload_end_mid = 0;
 uint16_t sd_offload_partial_start = 0;
 uint16_t sd_offload_partial_end = 0;
 
+int snes_boot_configured, firstboot;
+extern const uint8_t *fpga_config;
+
 volatile enum diskstates disk_state;
 extern volatile tick_t ticks;
 extern snes_romprops_t romprops;
 extern volatile int reset_changed;
 
 extern volatile cfg_t CFG;
+extern volatile status_t ST;
 
-enum system_states {
-  SYS_RTC_STATUS = 0,
-  SYS_LAST_STATUS = 1
-};
+void menu_cmd_readdir(void) {
+  uint8_t path[256];
+  SNES_FTYPE filetypes[16];
+  snes_get_filepath(path, 256);
+  snescmd_readstrn(filetypes, SNESCMD_MCU_PARAM + 8, sizeof(filetypes));
+  uint32_t tgt_addr = snescmd_readlong(SNESCMD_MCU_PARAM + 4) & 0xffffff;
+printf("path=%s tgt=%06lx types=", path, tgt_addr);
+uart_puts_hex((char*)filetypes);
+uart_putc('\n');
+  scan_dir(path, tgt_addr, filetypes);
+}
 
 int main(void) {
   LPC_GPIO2->FIODIR = BV(4) | BV(5);
   LPC_GPIO1->FIODIR = BV(23) | BV(SNES_CIC_PAIR_BIT);
   BITBAND(SNES_CIC_PAIR_REG->FIOSET, SNES_CIC_PAIR_BIT) = 1;
   LPC_GPIO0->FIODIR = BV(16);
+
+ /* disable pull-up on fake USB_CONNECT pin (P4.28), set P1.30 to VBUS */
+  LPC_PINCON->PINMODE9 |= BV(25);
+  LPC_PINCON->PINSEL3 |= BV(29);
+  LPC_PINCON->PINMODE3 |= BV(29);
 
  /* connect UART3 on P0[25:26] + SSP0 on P0[15:18] + MAT3.0 on P0[10] */
   LPC_PINCON->PINSEL1 = BV(18) | BV(19) | BV(20) | BV(21) /* UART3 */
@@ -80,7 +96,7 @@ int main(void) {
  /* do this last because the peripheral init()s change PCLK dividers */
   clock_init();
   LPC_PINCON->PINSEL0 |= BV(20) | BV(21);                  /* MAT3.0 (FPGA clock) */
-led_pwm();
+  led_std();
   sdn_init();
   printf("\n\nsd2snes mk.2\n============\nfw ver.: " CONFIG_VERSION "\ncpu clock: %d Hz\n", CONFIG_CPU_FREQUENCY);
 printf("PCONP=%lx\n", LPC_SC->PCONP);
@@ -88,24 +104,17 @@ printf("PCONP=%lx\n", LPC_SC->PCONP);
   file_init();
   cic_init(0);
 /* setup timer (fpga clk) */
+  LPC_TIM3->TCR=2;
   LPC_TIM3->CTCR=0;
+  LPC_TIM3->PR=0;
   LPC_TIM3->EMR=EMC0TOGGLE;
   LPC_TIM3->MCR=MR0R;
   LPC_TIM3->MR0=1;
   LPC_TIM3->TCR=1;
   fpga_init();
-  fpga_rompgm();
-  sram_writebyte(0, SRAM_CMD_ADDR);
+  firstboot = 1;
   while(1) {
-    if(disk_state == DISK_CHANGED) {
-      sdn_init();
-      newcard = 1;
-    }
-    load_bootrle(SRAM_MENU_ADDR);
-    set_saveram_mask(0x1fff);
-    set_rom_mask(0x3fffff);
-    set_mapper(0x7);
-    snes_reset(0);
+    snes_boot_configured = 0;
     while(get_cic_state() == CIC_FAIL) {
       rdyled(0);
       readled(0);
@@ -119,93 +128,47 @@ printf("PCONP=%lx\n", LPC_SC->PCONP);
     /* some sanity checks */
     uint8_t card_go = 0;
     while(!card_go) {
-      if(disk_status(0) & (STA_NOINIT|STA_NODISK)) {
-	snes_bootprint("        No SD Card found!       \0");
-	while(disk_status(0) & (STA_NOINIT|STA_NODISK));
-	delay_ms(200);
+      if(disk_status(0) & (STA_NODISK)) {
+        snes_bootprint("        No SD Card found!       \0");
+        while(disk_status(0) & (STA_NODISK));
+        delay_ms(200);
       }
       file_open((uint8_t*)"/sd2snes/menu.bin", FA_READ);
       if(file_status != FILE_OK) {
-	snes_bootprint("  /sd2snes/menu.bin not found!  \0");
-	while(disk_status(0) == RES_OK);
+        snes_bootprint("  /sd2snes/menu.bin not found!  \0");
+        while(disk_status(0) == 0);
       } else {
-	card_go = 1;
+        card_go = 1;
       }
       file_close();
     }
-    snes_bootprint("           Loading ...          \0");
-    if(get_cic_state() == CIC_PAIR) {
-      printf("PAIR MODE ENGAGED!\n");
-      cic_pair(CIC_NTSC, CIC_NTSC);
-    }
+//    snes_bootprint("           Loading ...          \0");
     rdyled(1);
     readled(0);
     writeled(0);
 
-    cfg_load();
-    cfg_save();
-    sram_writebyte(cfg_is_last_game_valid(), SRAM_STATUS_ADDR+SYS_LAST_STATUS);
-    cfg_get_last_game(file_lfn);
-    sram_writeblock(strrchr((const char*)file_lfn, '/')+1, SRAM_LASTGAME_ADDR, 256);
-    *fs_path=0;
-    uint32_t saved_dir_id;
-    get_db_id(&saved_dir_id);
-
-    uint32_t mem_dir_id = sram_readlong(SRAM_DIRID);
-    uint32_t mem_magic = sram_readlong(SRAM_SCRATCHPAD);
-    printf("mem_magic=%lx mem_dir_id=%lx saved_dir_id=%lx\n", mem_magic, mem_dir_id, saved_dir_id);
-    if((mem_magic != 0x12345678) || (mem_dir_id != saved_dir_id) || (newcard)) {
-      newcard = 0;
-      /* generate fs footprint (interesting files only) */
-      uint32_t curr_dir_id = scan_dir(fs_path, NULL, 0, 0);
-      printf("curr dir id = %lx\n", curr_dir_id);
-      /* files changed or no database found? */
-      if((get_db_id(&saved_dir_id) != FR_OK)
-	|| saved_dir_id != curr_dir_id) {
-	/* rebuild database */
-	printf("saved dir id = %lx\n", saved_dir_id);
-	printf("rebuilding database...");
-	snes_bootprint("     rebuilding database ...    \0");
-	curr_dir_id = scan_dir(fs_path, NULL, 1, 0);
-	sram_writeblock(&curr_dir_id, SRAM_DB_ADDR, 4);
-	uint32_t endaddr, direndaddr;
-	sram_readblock(&endaddr, SRAM_DB_ADDR+4, 4);
-	sram_readblock(&direndaddr, SRAM_DB_ADDR+8, 4);
-	printf("%lx %lx\n", endaddr, direndaddr);
-	printf("sorting database...");
-	snes_bootprint("       sorting database ...     \0");
-	sort_all_dir(direndaddr);
-	printf("done\n");
-	snes_bootprint("        saving database ...     \0");
-	save_sram((uint8_t*)"/sd2snes/sd2snes.db", endaddr-SRAM_DB_ADDR, SRAM_DB_ADDR);
-	save_sram((uint8_t*)"/sd2snes/sd2snes.dir", direndaddr-(SRAM_DIR_ADDR), SRAM_DIR_ADDR);
-        fpga_pgm((uint8_t*)"/sd2snes/fpga_base.bit");
-	printf("done\n");
-      } else {
-	printf("saved dir id = %lx\n", saved_dir_id);
-	printf("different card, consistent db, loading db...\n");
-        fpga_pgm((uint8_t*)"/sd2snes/fpga_base.bit");
-	load_sram_offload((uint8_t*)"/sd2snes/sd2snes.db", SRAM_DB_ADDR);
-	load_sram_offload((uint8_t*)"/sd2snes/sd2snes.dir", SRAM_DIR_ADDR);
-      }
-      sram_writelong(curr_dir_id, SRAM_DIRID);
-      sram_writelong(0x12345678, SRAM_SCRATCHPAD);
-    } else {
-      snes_bootprint("    same card, loading db...     \0");
-      printf("same card, loading db...\n");
-      fpga_pgm((uint8_t*)"/sd2snes/fpga_base.bit");
-      load_sram_offload((uint8_t*)"/sd2snes/sd2snes.db", SRAM_DB_ADDR);
-      load_sram_offload((uint8_t*)"/sd2snes/sd2snes.dir", SRAM_DIR_ADDR);
+    if(firstboot) {
+      cfg_load();
+      cfg_save();
+      cic_init(cfg_is_pair_mode_allowed());
+      cfg_validity_check_recent_games();
     }
-    /* cli_loop(); */
-    /* load menu */
+    if(fpga_config != FPGA_BASE) fpga_pgm((uint8_t*)FPGA_BASE);
+    cfg_dump_recent_games_for_snes(SRAM_LASTGAME_ADDR);
 
+    /* load menu */
+    sram_writelong(0x12345678, SRAM_SCRATCHPAD);
     fpga_dspx_reset(1);
     uart_putc('(');
     load_rom((uint8_t*)"/sd2snes/menu.bin", SRAM_MENU_ADDR, 0);
     /* force memory size + mapper */
     set_rom_mask(0x3fffff);
     set_mapper(0x7);
+    /* disable all cheats+hooks */
+    fpga_write_cheat(7, 0x3f00);
+    /* reset DAC */
+    dac_pause();
+    dac_reset(0);
     uart_putc(')');
     uart_putcrlf();
 
@@ -213,21 +176,43 @@ printf("PCONP=%lx\n", LPC_SC->PCONP);
 
     if((rtc_state = rtc_isvalid()) != RTC_OK) {
       printf("RTC invalid!\n");
-      sram_writebyte(0xff, SRAM_STATUS_ADDR+SYS_RTC_STATUS);
+      ST.rtc_valid = 0xff;
       set_bcdtime(0x20120701000000LL);
       set_fpga_time(0x20120701000000LL);
       invalidate_rtc();
     } else {
       printf("RTC valid!\n");
-      sram_writebyte(0x00, SRAM_STATUS_ADDR+SYS_RTC_STATUS);
+      ST.rtc_valid = 0;
       set_fpga_time(get_bcdtime());
     }
     sram_memset(SRAM_SYSINFO_ADDR, 13*40, 0x20);
     printf("SNES GO!\n");
     snes_reset(1);
     fpga_reset_srtc_state();
+    if(!firstboot) {
+      if(ST.is_u16 && (ST.u16_cfg & 0x01)) {
+        delay_ms(59*SNES_RESET_PULSELEN_MS);
+      }
+    }
+    firstboot = 0;
     delay_ms(SNES_RESET_PULSELEN_MS);
     sram_writebyte(32, SRAM_CMD_ADDR);
+    enum cicstates cic_state = get_cic_state();
+    switch(cic_state) {
+      case CIC_PAIR:
+        ST.pairmode = 1;
+        printf("PAIR MODE ENGAGED!\n");
+        cic_pair(CFG.vidmode_menu, CFG.vidmode_menu);
+        break;
+      case CIC_SCIC:
+        ST.pairmode = 1;
+        break;
+      default:
+        ST.pairmode = 0;
+    }
+    fpga_set_dac_boost(CFG.msu_volume_boost);
+    cfg_load_to_menu();
+    status_load_to_menu();
     snes_reset(0);
 
     uint8_t cmd = 0;
@@ -243,26 +228,29 @@ printf("PCONP=%lx\n", LPC_SC->PCONP);
   //sram_hexdump(SRAM_DB_ADDR, 0x200);
   //sram_hexdump(SRAM_MENU_ADDR, 0x400);
     while(!cmd) {
+      /* tell the menu we're ready to accept commands */
+      snescmd_writebyte(MCU_CMD_RDY, SNESCMD_SNES_CMD);
       cmd=menu_main_loop();
+      /* acknowledge command */
+      echo_mcu_cmd();
       printf("cmd: %d\n", cmd);
+      status_save_from_menu();
       uart_putc('-');
       switch(cmd) {
-	case SNES_CMD_LOADROM:
-	  get_selected_name(file_lfn);
-	  printf("Selected name: %s\n", file_lfn);
-          cfg_save_last_game(file_lfn);
-          cfg_set_last_game_valid(1);
-          cfg_save();
-	  filesize = load_rom(file_lfn, SRAM_ROM_ADDR, LOADROM_WITH_SRAM | LOADROM_WITH_RESET);
-	  break;
-	case SNES_CMD_SETRTC:
+        case SNES_CMD_LOADROM:
+          get_selected_name(file_lfn);
+          printf("Selected name: %s\n", file_lfn);
+          cfg_add_last_game(file_lfn);
+          filesize = load_rom(file_lfn, SRAM_ROM_ADDR, LOADROM_WITH_SRAM | LOADROM_WITH_RESET | LOADROM_WAIT_SNES);
+          break;
+        case SNES_CMD_SETRTC:
           /* get time from RAM */
-          btime = sram_gettime(SRAM_PARAM_ADDR);
+          btime = snescmd_gettime();
           /* set RTC */
           set_bcdtime(btime);
           set_fpga_time(btime);
-	  cmd=0; /* stay in menu loop */
-	  break;
+          cmd=0; /* stay in menu loop */
+          break;
         case SNES_CMD_SYSINFO:
           /* go to sysinfo loop */
           sysinfo_loop();
@@ -282,67 +270,115 @@ printf("PCONP=%lx\n", LPC_SC->PCONP);
           cmd=0; /* stay in menu loop */
           break;
         case SNES_CMD_LOADLAST:
-          cfg_get_last_game(file_lfn);
+          cfg_get_last_game(file_lfn, snes_get_mcu_param() & 0xff);
           printf("Selected name: %s\n", file_lfn);
-          filesize = load_rom(file_lfn, SRAM_ROM_ADDR, LOADROM_WITH_SRAM | LOADROM_WITH_RESET);
+          cfg_add_last_game(file_lfn);
+          filesize = load_rom(file_lfn, SRAM_ROM_ADDR, LOADROM_WITH_SRAM | LOADROM_WITH_RESET | LOADROM_WAIT_SNES);
           break;
-	default:
-	  printf("unknown cmd: %d\n", cmd);
-	  cmd=0; /* unknown cmd: stay in loop */
-	  break;
+/*        case SNES_CMD_SET_ALLOW_PAIR:
+          cfg_set_pair_mode_allowed(snes_get_mcu_param() & 0xff);
+          break;
+        case SNES_CMD_SELECT_FILE:
+          menu_cmd_select_file();
+          cmd=0;
+          break;
+        case SNES_CMD_SELECT_LAST_FILE:
+          menu_cmd_select_last_file();
+          cmd=0;
+          break;*/
+        case SNES_CMD_READDIR:
+          menu_cmd_readdir();
+          cmd=0; /* stay in menu loop */
+          break;
+        case SNES_CMD_GAMELOOP:
+          /* enter game loop immediately */
+          break;
+        case SNES_CMD_SAVE_CFG:
+          /* save config */
+          cfg_get_from_menu();
+          cic_init(CFG.pair_mode_allowed);
+          if(CFG.pair_mode_allowed && cic_state == CIC_SCIC) {
+            delay_ms(50);
+            if(get_cic_state() == CIC_PAIR) {
+              cic_pair(CFG.vidmode_menu, CFG.vidmode_menu);
+            }
+          }
+          cic_videomode(CFG.vidmode_menu);
+          fpga_set_dac_boost(CFG.msu_volume_boost);
+          cfg_save();
+          cmd=0; /* stay in menu loop */
+          break;
+        case SNES_CMD_LOAD_CHT:
+          /* load cheats */
+          cmd=0; /* stay in menu loop */
+          break;
+        case SNES_CMD_SAVE_CHT:
+          /* save cheats */
+// XXX          cheat_save_from_menu()
+          cmd=0; /* stay in menu loop */
+          break;
+        default:
+          printf("unknown cmd: %d\n", cmd);
+          cmd=0; /* unknown cmd: stay in loop */
+          break;
       }
     }
+    printf("loaded %lu bytes\n", filesize);
     printf("cmd was %x, going to snes main loop\n", cmd);
 
-    if(romprops.has_msu1 && msu1_loop()) {
+    /* clear SNES cmd */
+    snes_set_mcu_cmd(0);
+
+    if(romprops.has_msu1) {
+      while(!msu1_loop());
       prepare_reset();
       continue;
     }
 
     cmd=0;
-    uint8_t snes_reset_prev=0, snes_reset_now=0, snes_reset_state=0;
-    uint16_t reset_count=0;
+    int loop_ticks = getticks();
+// uint8_t snes_res;
     while(fpga_test() == FPGA_TEST_TOKEN) {
       cli_entrycheck();
-      sleep_ms(250);
+//        sleep_ms(250);
       sram_reliable();
-      printf("%s ", get_cic_statename(get_cic_state()));
       if(reset_changed) {
         printf("reset\n");
         reset_changed = 0;
+// TODO have FPGA automatically reset SRTC on detected reset
         fpga_reset_srtc_state();
       }
-      snes_reset_now=get_snes_reset();
-      if(snes_reset_now) {
-	if(!snes_reset_prev) {
-	  printf("RESET BUTTON DOWN\n");
-	  snes_reset_state=1;
-	  reset_count=0;
-	}
-      } else {
-	if(snes_reset_prev) {
-	  printf("RESET BUTTON UP\n");
-	  snes_reset_state=0;
-	}
-      }
-      if(snes_reset_state) {
-	reset_count++;
-      } else {
-	sram_reliable();
-	snes_main_loop();
-      }
-      if(reset_count>4) {
-	reset_count=0;
+      if(get_snes_reset_state() == SNES_RESET_LONG) {
         prepare_reset();
-	break;
+        break;
+      } else {
+        if(getticks() > loop_ticks + 25) {
+          loop_ticks = getticks();
+ //         sram_reliable();
+          printf("%s ", get_cic_statename(get_cic_state()));
+          cmd=snes_main_loop();
+          if(cmd) {
+            switch(cmd) {
+              case SNES_CMD_RESET:
+                snes_reset_pulse();
+                break;
+              case SNES_CMD_RESET_TO_MENU:
+                prepare_reset();
+                goto snes_loop_out;
+              default:
+                printf("unknown cmd: %02x\n", cmd);
+                break;
+            }
+            snes_set_mcu_cmd(0);
+          }
+        }
       }
-      snes_reset_prev = snes_reset_now;
     }
     /* fpga test fail: panic */
+    snes_loop_out:
     if(fpga_test() != FPGA_TEST_TOKEN){
-      led_panic();
+      led_panic(LED_PANIC_FPGA_DEAD);
     }
     /* else reset */
   }
 }
-

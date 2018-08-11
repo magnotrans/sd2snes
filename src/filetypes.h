@@ -36,23 +36,25 @@
 #include "ff.h"
 
 #define FS_MAX_DEPTH	(10)
+/* rely on optimization to reduce every occurrence to the same location. */
 #define SYS_DIR_NAME	((const char*)"sd2snes")
 typedef enum {
-  TYPE_UNKNOWN = 0, /* 0 */
-  TYPE_SMC,         /* 1 */
-  TYPE_SRM,         /* 2 */
-  TYPE_SPC,         /* 3 */
-  TYPE_IPS          /* 4 */
+  TYPE_UNKNOWN =   0,
+  TYPE_ROM     =   1,
+  TYPE_SRM     =   2,
+  TYPE_SPC     =   3,
+  TYPE_IPS     =   4,
+  TYPE_CHT     =   5,
+  TYPE_SKIN    =   6,
+  TYPE_SUBDIR  =  64,
+  TYPE_PARENT  = 128
 } SNES_FTYPE;
 
 
-char fs_path[256];
-SNES_FTYPE determine_filetype(char* filename);
-//uint32_t scan_fs();
-uint16_t scan_flat(const char* path);
-uint32_t scan_dir(char* path, FILINFO* fno_param, char mkdb, uint32_t this_subdir_tgt);
-FRESULT get_db_id(uint32_t*);
+SNES_FTYPE determine_filetype(FILINFO fno);
+uint16_t scan_dir(const uint8_t *path, uint32_t base_addr, const SNES_FTYPE *filetypes);
 int get_num_dirent(uint32_t addr);
 void sort_all_dir(uint32_t endaddr);
-
+void make_filesize_string(char *buf, uint32_t size);
+int is_requested_filetype(SNES_FTYPE type, const SNES_FTYPE *filetypes);
 #endif
