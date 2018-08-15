@@ -87,7 +87,7 @@ begin
 	Begin
 		if( zero_count = 0 ) then
 			din_tready							<= dout_tready;
-			-- if input bit is '0', shift 1 bit, else shift 3 bits
+			-- if input bit is '0', shift 1 bit, else shift N bits
 			if( LPS_Flag = '0' ) then
 				din_tuser						<= "000";
 			else

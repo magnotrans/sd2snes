@@ -37,6 +37,8 @@ entity SDD1 is
 	Port(	MCLK 									: in 	STD_LOGIC;
 			RESET 								: in 	STD_LOGIC;
 			SRAM_CS 								: out STD_LOGIC;
+			SRAM_RD 								: out STD_LOGIC;
+			SRAM_WR 								: out STD_LOGIC;
 			ROM_OE 								: out STD_LOGIC;
 			ROM_CS	 							: out STD_LOGIC;
 			ROM_ADDR								: out STD_LOGIC_VECTOR(21 downto 0);
@@ -119,11 +121,17 @@ begin
 		if( SNES_RD = '0' OR SNES_WR = '0' ) then
 			if( SNES_ADDR(23 downto 19) = B"01110" AND SNES_ADDR(15) = '0' ) then
 				SRAM_CS								<= '0';
+				SRAM_RD								<= SNES_RD;
+				SRAM_WR								<= SNES_WR;
 			else
 				SRAM_CS								<= '1';
+				SRAM_RD								<= '1';
+				SRAM_WR								<= '1';
 			end if;
 		else
 			SRAM_CS									<= '1';
+			SRAM_RD									<= '1';
+			SRAM_WR									<= '1';
 		end if;
 	End Process;
 	

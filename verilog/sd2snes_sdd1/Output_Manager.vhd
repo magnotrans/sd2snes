@@ -126,7 +126,7 @@ architecture Behavioral of Output_Manager is
 begin
 	-- current bitplane results from concatenation of current even/odd bitplane and
 	-- number of BPP0/BPP1 to decode
-	Cnt_BPP											<= Cnt_Pair*2 + Cnt_Even;
+	Cnt_BPP											<= Cnt_Pair + Cnt_Pair + Cnt_Even;
 
 	-- process for controlling data planes
 	Process( clk )
@@ -331,50 +331,133 @@ begin
 	--  BPP_Bit_tuser(6)		-> upper-right pixel
 	--  BPP_Bit_tuser(1)		-> before-last decoded pixel
 	--  BPP_Bit_tuser(0)		-> last decoded pixel
-	Process( Cnt_BPP, BPP0_Byte, BPP1_Byte, BPP2_Byte, BPP3_Byte, BPP4_Byte, BPP5_Byte, BPP6_Byte, BPP7_Byte,
-				BPP0_Previous, BPP1_Previous, BPP2_Previous, BPP3_Previous, BPP4_Previous, BPP5_Previous, BPP6_Previous, BPP7_Previous )
+--	Process( Cnt_BPP, BPP0_Byte, BPP1_Byte, BPP2_Byte, BPP3_Byte, BPP4_Byte, BPP5_Byte, BPP6_Byte, BPP7_Byte,
+--				BPP0_Previous, BPP1_Previous, BPP2_Previous, BPP3_Previous, BPP4_Previous, BPP5_Previous, BPP6_Previous, BPP7_Previous )
+--	Begin
+--		case Cnt_BPP is
+--			when 0 =>
+--				BPP_Bit_tuser(9)					<= '0';
+--				BPP_Bit_tuser(8)					<= BPP0_Previous;
+--				BPP_Bit_tuser(7 downto 0)		<= BPP0_Byte;
+--			
+--			when 1 =>
+--				BPP_Bit_tuser(9)					<= '1';
+--				BPP_Bit_tuser(8)					<= BPP1_Previous;
+--				BPP_Bit_tuser(7 downto 0)		<= BPP1_Byte;
+--				
+--			when 2 =>
+--				BPP_Bit_tuser(9)					<= '0';
+--				BPP_Bit_tuser(8)					<= BPP2_Previous;
+--				BPP_Bit_tuser(7 downto 0)		<= BPP2_Byte;
+--					
+--			when 3 =>
+--				BPP_Bit_tuser(9)					<= '1';          
+--				BPP_Bit_tuser(8)					<= BPP3_Previous;
+--				BPP_Bit_tuser(7 downto 0)		<= BPP3_Byte;
+--
+--			when 4 =>
+--				BPP_Bit_tuser(9)					<= '0';          
+--				BPP_Bit_tuser(8)					<= BPP4_Previous;
+--				BPP_Bit_tuser(7 downto 0)		<= BPP4_Byte;
+--				
+--			when 5 =>
+--				BPP_Bit_tuser(9)					<= '1';          
+--				BPP_Bit_tuser(8)					<= BPP5_Previous;
+--				BPP_Bit_tuser(7 downto 0)		<= BPP5_Byte;
+--				
+--			when 6 =>
+--				BPP_Bit_tuser(9)					<= '0';          
+--				BPP_Bit_tuser(8)					<= BPP6_Previous;
+--				BPP_Bit_tuser(7 downto 0)		<= BPP6_Byte;
+--					
+--			when 7 =>
+--				BPP_Bit_tuser(9)					<= '1';          
+--				BPP_Bit_tuser(8)					<= BPP7_Previous;
+--				BPP_Bit_tuser(7 downto 0)		<= BPP7_Byte;
+--		end case;
+--	End Process;
+	
+	
+	-- pre-calculate context bits and register them
+	Process( clk )
 	Begin
-		case Cnt_BPP is
-			when 0 =>
-				BPP_Bit_tuser(9)					<= '0';
-				BPP_Bit_tuser(8)					<= BPP0_Previous;
-				BPP_Bit_tuser(7 downto 0)		<= BPP0_Byte;
-			
-			when 1 =>
-				BPP_Bit_tuser(9)					<= '1';
-				BPP_Bit_tuser(8)					<= BPP1_Previous;
-				BPP_Bit_tuser(7 downto 0)		<= BPP1_Byte;
-				
-			when 2 =>
-				BPP_Bit_tuser(9)					<= '0';
-				BPP_Bit_tuser(8)					<= BPP2_Previous;
-				BPP_Bit_tuser(7 downto 0)		<= BPP2_Byte;
+		if rising_edge( clk ) then
+			if( Header_Valid = '1' ) then
+				BPP_Bit_tuser								<= (others => '0');
+			elsif( BPP_Bit_tvalid = '1' ) then
+				case Cnt_BPP is
+					-- BPP0
+					when 0 =>
+						-- in any mode, if last decoded bit was BPP0, next plane is BBP1
+						BPP_Bit_tuser(9)					<= '1';
+						BPP_Bit_tuser(8)					<= BPP1_Previous;
+						BPP_Bit_tuser(7 downto 0)		<= BPP1_Byte;
+						
+					-- BPP1
+					when 1 =>
+						-- in 2 bitplane mode, if last decoded bit was BPP1, next plane is BBP0
+						if( Max_BPP = 0 ) then
+							BPP_Bit_tuser(9)				<= '0';
+							BPP_Bit_tuser(8)				<= BPP0_Previous;
+							BPP_Bit_tuser(7 downto 0)	<= BPP0_Byte;
+						-- in any other mode, nex plane is BPP2
+						else
+							BPP_Bit_tuser(9)				<= '0';
+							BPP_Bit_tuser(8)				<= BPP2_Previous;
+							BPP_Bit_tuser(7 downto 0)	<= BPP2_Byte;
+						end if;
+		
+					-- BPP2
+					when 2 =>
+						-- in any mode, if last decoded bit was BPP2, next plane is BBP3
+						BPP_Bit_tuser(9)					<= '1';          
+						BPP_Bit_tuser(8)					<= BPP3_Previous;
+						BPP_Bit_tuser(7 downto 0)		<= BPP3_Byte;
 					
-			when 3 =>
-				BPP_Bit_tuser(9)					<= '1';          
-				BPP_Bit_tuser(8)					<= BPP3_Previous;
-				BPP_Bit_tuser(7 downto 0)		<= BPP3_Byte;
-
-			when 4 =>
-				BPP_Bit_tuser(9)					<= '0';          
-				BPP_Bit_tuser(8)					<= BPP4_Previous;
-				BPP_Bit_tuser(7 downto 0)		<= BPP4_Byte;
-				
-			when 5 =>
-				BPP_Bit_tuser(9)					<= '1';          
-				BPP_Bit_tuser(8)					<= BPP5_Previous;
-				BPP_Bit_tuser(7 downto 0)		<= BPP5_Byte;
-				
-			when 6 =>
-				BPP_Bit_tuser(9)					<= '0';          
-				BPP_Bit_tuser(8)					<= BPP6_Previous;
-				BPP_Bit_tuser(7 downto 0)		<= BPP6_Byte;
+					-- BPP3
+					when 3 =>
+						-- in 4 bitplane mode, if last decoded bit was BPP3, next plane is BBP0
+						if( Max_BPP = 1 ) then
+							BPP_Bit_tuser(9)				<= '0';
+							BPP_Bit_tuser(8)				<= BPP0_Previous;
+							BPP_Bit_tuser(7 downto 0)	<= BPP0_Byte;
+						-- in any other mode, nex plane is BPP4
+						else
+							BPP_Bit_tuser(9)				<= '0';
+							BPP_Bit_tuser(8)				<= BPP4_Previous;
+							BPP_Bit_tuser(7 downto 0)	<= BPP4_Byte;
+						end if;
+	
+					-- BPP4
+					when 4 =>
+						-- in 8BPP or MODE7 mode, if last decoded bit was BPP4, next plane is BBP5
+						BPP_Bit_tuser(9)					<= '1';          
+						BPP_Bit_tuser(8)					<= BPP5_Previous;
+						BPP_Bit_tuser(7 downto 0)		<= BPP5_Byte;
 					
-			when 7 =>
-				BPP_Bit_tuser(9)					<= '1';          
-				BPP_Bit_tuser(8)					<= BPP7_Previous;
-				BPP_Bit_tuser(7 downto 0)		<= BPP7_Byte;
-		end case;
+					--BPP5
+					when 5 => 
+						-- in 8BPP or MODE7 mode, if last decoded bit was BPP5, next plane is BBP6
+						BPP_Bit_tuser(9)					<= '0';          
+						BPP_Bit_tuser(8)					<= BPP6_Previous;
+						BPP_Bit_tuser(7 downto 0)		<= BPP6_Byte;
+						
+					-- BPP6
+					when 6 =>
+						-- in 8BPP or MODE7 mode, if last decoded bit was BPP6, next plane is BBP7
+						BPP_Bit_tuser(9)					<= '1';          
+						BPP_Bit_tuser(8)					<= BPP7_Previous;
+						BPP_Bit_tuser(7 downto 0)		<= BPP7_Byte;
+	
+					-- BPP7
+					when 7 =>
+						-- in 8BPP or MODE7 mode, if last decoded bit was BPP7, next plane is BBP0
+						BPP_Bit_tuser(9)					<= '0';          
+						BPP_Bit_tuser(8)					<= BPP0_Previous;
+						BPP_Bit_tuser(7 downto 0)		<= BPP0_Byte;
+				end case;	
+			end if;
+		end if;
 	End Process;
 	
 
@@ -383,9 +466,10 @@ begin
 				FSM_Ready_BPP5, FSM_Ready_BPP6, FSM_Ready_BPP7, BPP0_Byte, BPP1_Byte, BPP2_Byte, 
 				BPP3_Byte, BPP4_Byte, BPP5_Byte, BPP6_Byte, BPP7_Byte, FSM_Ready_MODE7 )
 	Begin
+		FIFO_Data_tdata							<= X"00";
+	
 		-- send data to output register
 		if( FSM_Ready_MODE7 = '1' ) then
-			FIFO_Data_tvalid						<= '1';
 			FIFO_Data_tdata(0)					<= BPP0_Byte(0);
 			FIFO_Data_tdata(1)					<= BPP1_Byte(0);
 			FIFO_Data_tdata(2)					<= BPP2_Byte(0);
@@ -394,35 +478,42 @@ begin
 			FIFO_Data_tdata(5)					<= BPP5_Byte(0);
 			FIFO_Data_tdata(6)					<= BPP6_Byte(0);
 			FIFO_Data_tdata(7)					<= BPP7_Byte(0);
-		elsif( FSM_Ready_BPP0 = '1' ) then
-			FIFO_Data_tvalid						<= '1';
+		end if;
+		
+		if( FSM_Ready_BPP0 = '1' ) then
 			FIFO_Data_tdata						<= BPP0_Byte;
-		elsif( FSM_Ready_BPP1 = '1' ) then
-			FIFO_Data_tvalid						<= '1';
+		end if;
+
+		if( FSM_Ready_BPP1 = '1' ) then
 			FIFO_Data_tdata						<= BPP1_Byte;
-		elsif( FSM_Ready_BPP2 = '1' ) then
-			FIFO_Data_tvalid						<= '1';
+		end if;
+		
+		if( FSM_Ready_BPP2 = '1' ) then
 			FIFO_Data_tdata						<= BPP2_Byte;
-		elsif( FSM_Ready_BPP3 = '1' ) then
-			FIFO_Data_tvalid						<= '1';
+		end if;
+
+		if( FSM_Ready_BPP3 = '1' ) then
 			FIFO_Data_tdata						<= BPP3_Byte;
-		elsif( FSM_Ready_BPP4 = '1' ) then
-			FIFO_Data_tvalid						<= '1';
+		end if;
+		
+		if( FSM_Ready_BPP4 = '1' ) then
 			FIFO_Data_tdata						<= BPP4_Byte;
-		elsif( FSM_Ready_BPP5 = '1' ) then
-			FIFO_Data_tvalid						<= '1';
+		end if;
+		
+		if( FSM_Ready_BPP5 = '1' ) then
 			FIFO_Data_tdata						<= BPP5_Byte;
-		elsif( FSM_Ready_BPP6 = '1' ) then
-			FIFO_Data_tvalid						<= '1';
+		end if;
+
+		if( FSM_Ready_BPP6 = '1' ) then
 			FIFO_Data_tdata						<= BPP6_Byte;
-		elsif( FSM_Ready_BPP7 = '1' ) then
-			FIFO_Data_tvalid						<= '1';
+		end if;
+
+		if( FSM_Ready_BPP7 = '1' ) then
 			FIFO_Data_tdata						<= BPP7_Byte;
-		else
-			FIFO_Data_tvalid						<= '0';
-			FIFO_Data_tdata						<= X"00";
 		end if;
 	End Process;
+	FIFO_Data_tvalid								<= FSM_Ready_MODE7 OR FSM_Ready_BPP0 OR FSM_Ready_BPP1 OR FSM_Ready_BPP2 OR FSM_Ready_BPP3 OR
+															FSM_Ready_BPP4 OR FSM_Ready_BPP5 OR FSM_Ready_BPP6 OR FSM_Ready_BPP7;
 	
 	-- output FIFO
 	Output_Data : FIFO_B2B

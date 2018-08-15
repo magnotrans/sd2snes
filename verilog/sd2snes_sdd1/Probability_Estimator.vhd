@@ -42,7 +42,7 @@ entity Probability_Estimator is
 			Header_Context						: in	STD_LOGIC_VECTOR(1 downto 0);
     		-- run data from input manager
 			Decoded_Bit_tready 				: out STD_LOGIC;
-			Decoded_Bit_tuser					: out STD_LOGIC_VECTOR(2 downto 0);
+			Decoded_Bit_tuser					: out STD_LOGIC_VECTOR(7 downto 0);
 			Decoded_Bit_tvalid				: in 	STD_LOGIC;
 			Decoded_Bit_tdata					: in 	STD_LOGIC;
 			Decoded_Bit_tlast					: in 	STD_LOGIC;
@@ -66,6 +66,7 @@ architecture Behavioral of Probability_Estimator is
 	
 	signal Context_Type						: STD_LOGIC_VECTOR(1 downto 0) := "00";
 	signal Context								: STD_LOGIC_VECTOR(4 downto 0) := "00000";
+	signal Context_tuser						: STD_LOGIC_VECTOR(4 downto 0) := "00000";
 	signal Curr_MPS							: STD_LOGIC := '0';
 	signal Next_MPS							: STD_LOGIC := '0';
 	signal Curr_State							: integer range 0 to 32 := 0;
@@ -99,8 +100,7 @@ begin
 		end if;
 	End Process;
 	
-	-- output request to IM is done when context is registered from OM
-	Decoded_Bit_tready								<= Decoded_Bit_tready_i;		
+
 	-- output bit is ready 1 cycle after IM returns a Golomb decoded bit
 	BPP_Bit_tvalid										<= Decoded_Bit_tready_reg;
 
@@ -112,30 +112,33 @@ begin
 	--  BPP_Bit_tuser(6)		-> upper-right pixel
 	--  BPP_Bit_tuser(1)		-> before-last decoded pixel
 	--  BPP_Bit_tuser(0)		-> last decoded pixel
+	Process( BPP_Bit_tuser, Context_Type )
+	Begin
+		case Context_Type is
+			-- use previous, upper-left, upper and upper-rigtht pixels
+			when "00" =>
+				Context_tuser							<= BPP_Bit_tuser(9) & BPP_Bit_tuser(8) & BPP_Bit_tuser(7) & BPP_Bit_tuser(6) & BPP_Bit_tuser(0);
+		
+			-- use previous, upper-left and upper pixels
+			when "01" =>
+				Context_tuser							<= BPP_Bit_tuser(9) & '0' & BPP_Bit_tuser(8) & BPP_Bit_tuser(7) & BPP_Bit_tuser(0);
+						
+			-- use previous, upper-right and upper pixels
+			when "10" =>
+				Context_tuser							<= BPP_Bit_tuser(9) & '0' & BPP_Bit_tuser(7) & BPP_Bit_tuser(6) & BPP_Bit_tuser(0);
+						
+			-- use previous, before-previous, upper-left and upper pixels
+			when others =>
+				Context_tuser							<= BPP_Bit_tuser(9) & BPP_Bit_tuser(8) & BPP_Bit_tuser(7) &  BPP_Bit_tuser(1) & BPP_Bit_tuser(0);
+		end case;	
+	End Process;
+	
+	-- register "Context_tuser" decoded from "BPP_Bit_tuser" for internal use; "Context" is aligned to "Decoded_Bit_tready_i"
 	Process( clk )
 	Begin
 		if rising_edge( clk ) then
 			if( BPP_Bit_tready = '1' ) then
-				case Context_Type is
-					-- use previous, upper-left, upper and upper-rigtht pixels
-					when "00" =>
-						Context							<= BPP_Bit_tuser(9) & BPP_Bit_tuser(8) & BPP_Bit_tuser(7) & BPP_Bit_tuser(6) & BPP_Bit_tuser(0);
-			
-					-- use previous, upper-left and upper pixels
-					when "01" =>
-						Context							<= BPP_Bit_tuser(9) & '0' & BPP_Bit_tuser(8) & BPP_Bit_tuser(7) & BPP_Bit_tuser(0);
-						
-					-- use previous, upper-right and upper pixels
-					when "10" =>
-						Context							<= BPP_Bit_tuser(9) & '0' & BPP_Bit_tuser(7) & BPP_Bit_tuser(6) & BPP_Bit_tuser(0);
-						
-					-- use previous, before-previous, upper-left and upper pixels
-					when "11" =>
-						Context							<= BPP_Bit_tuser(9) & BPP_Bit_tuser(8) & BPP_Bit_tuser(7) &  BPP_Bit_tuser(1) & BPP_Bit_tuser(0);
-						
-					when others =>
-						Context							<= (others => '0');
-				end case;
+				Context									<= Context_tuser;
 			end if;
 		end if;
 	End Process;
@@ -183,49 +186,49 @@ begin
 
 			when 25 =>
 				if( Decoded_Bit_tdata_reg = '0' ) then
-					Next_State							<= Curr_State+1;
+					Next_State							<= 26;
 				else
 					Next_State							<= 1;
 				end if;
 
 			when 26 =>
 				if( Decoded_Bit_tdata_reg = '0' ) then
-					Next_State							<= Curr_State+1;
+					Next_State							<= 27;
 				else
 					Next_State							<= 2;
 				end if;
 
 			when 27 =>
 				if( Decoded_Bit_tdata_reg = '0' ) then
-					Next_State							<= Curr_State+1;
+					Next_State							<= 28;
 				else
 					Next_State							<= 4;
 				end if;
 
 			when 28 =>
 				if( Decoded_Bit_tdata_reg = '0' ) then
-					Next_State							<= Curr_State+1;
+					Next_State							<= 29;
 				else
 					Next_State							<= 8;
 				end if;
 
 			when 29 =>
 				if( Decoded_Bit_tdata_reg = '0' ) then
-					Next_State							<= Curr_State+1;
+					Next_State							<= 30;
 				else
 					Next_State							<= 12;
 				end if;
 				
 			when 30 =>
 				if( Decoded_Bit_tdata_reg = '0' ) then
-					Next_State							<= Curr_State+1;
+					Next_State							<= 31;
 				else
 					Next_State							<= 16;
 				end if;
 
 			when 31 =>
 				if( Decoded_Bit_tdata_reg = '0' ) then
-					Next_State							<= Curr_State+1;
+					Next_State							<= 32;
 				else
 					Next_State							<= 18;
 				end if;
@@ -258,41 +261,83 @@ begin
 			end if;
 		end if;
 	End Process;
+
+-- read state from RAM; Curr_State is valid 1 cycle after OM asks for a new bit
+--		Curr_State										<= RAM_STAT(conv_integer(Context));
+--	-- get Colomb decoder order from current state
+--	with Curr_State select
+--		Decoded_Bit_tuser								<= "001"	when 5,
+--																"001"	when 6,
+--																"001"	when 7,
+--																"001"	when 8,
+--																"010"	when 9,
+--																"010"	when 10,
+--																"010"	when 11,
+--																"010"	when 12,
+--																"011"	when 13,
+--																"011"	when 14,
+--																"011"	when 15,
+--																"011"	when 16,
+--																"100"	when 17,
+--																"100"	when 18,
+--																"101"	when 19,
+--																"101"	when 20,
+--																"110"	when 21,
+--																"110"	when 22,
+--																"111"	when 23,
+--																"111"	when 24,
+--																"001"	when 26,
+--																"010"	when 27,
+--																"011"	when 28,
+--																"100"	when 29,
+--																"101"	when 30,
+--																"110"	when 31,
+--																"111"	when 32,
+--																"000"	when others;
+	-- output request to IM is done when context is registered from OM
+	Decoded_Bit_tready								<= Decoded_Bit_tready_i;
+		
+	Process( clk )
+	Begin
+		if rising_edge( clk ) then
+			-- read state from RAM; Curr_State is valid 1 cycle after OM asks for a new bit
+			Curr_State									<= RAM_STAT(conv_integer(Context_tuser));
 	
-	-- read state from RAM; Curr_State is valid 1 cycle after OM asks for a new bit
-	Curr_State											<= RAM_STAT(conv_integer(Context));
+			-- get Colomb decoder order from precalculated current state		
+			case RAM_STAT(conv_integer(Context_tuser)) is
+				when 5 		=> Decoded_Bit_tuser			<= "00000010";
+				when 6 		=> Decoded_Bit_tuser			<= "00000010";
+				when 7 		=> Decoded_Bit_tuser			<= "00000010";
+				when 8 		=> Decoded_Bit_tuser			<= "00000010";
+				when 9 		=> Decoded_Bit_tuser			<= "00000100";
+				when 10		=> Decoded_Bit_tuser			<= "00000100";
+				when 11 		=> Decoded_Bit_tuser			<= "00000100";
+				when 12 		=> Decoded_Bit_tuser			<= "00000100";
+				when 13 		=> Decoded_Bit_tuser			<= "00001000";
+				when 14 		=> Decoded_Bit_tuser			<= "00001000";
+				when 15 		=> Decoded_Bit_tuser			<= "00001000";
+				when 16 		=> Decoded_Bit_tuser			<= "00001000";
+				when 17 		=> Decoded_Bit_tuser			<= "00010000";
+				when 18 		=> Decoded_Bit_tuser			<= "00010000";
+				when 19 		=> Decoded_Bit_tuser			<= "00100000";
+				when 20 		=> Decoded_Bit_tuser			<= "00100000";
+				when 21 		=> Decoded_Bit_tuser			<= "01000000";
+				when 22 		=> Decoded_Bit_tuser			<= "01000000";
+				when 23 		=> Decoded_Bit_tuser			<= "10000000";
+				when 24 		=> Decoded_Bit_tuser			<= "10000000";
+				when 26 		=> Decoded_Bit_tuser			<= "00000010";
+				when 27 		=> Decoded_Bit_tuser			<= "00000100";
+				when 28 		=> Decoded_Bit_tuser			<= "00001000";
+				when 29		=> Decoded_Bit_tuser			<= "00010000";
+				when 30		=> Decoded_Bit_tuser			<= "00100000";
+				when 31		=> Decoded_Bit_tuser			<= "01000000";
+				when 32		=> Decoded_Bit_tuser			<= "10000000";
+				when others =>	Decoded_Bit_tuser			<= "00000001";
+			end case;
 
-	-- get Colomb decoder order from current state
-	with Curr_State select
-		Decoded_Bit_tuser								<= "001"	when 5,
-																"001"	when 6,
-																"001"	when 7,
-																"001"	when 8,
-																"010"	when 9,
-																"010"	when 10,
-																"010"	when 11,
-																"010"	when 12,
-																"011"	when 13,
-																"011"	when 14,
-																"011"	when 15,
-																"011"	when 16,
-																"100"	when 17,
-																"100"	when 18,
-																"101"	when 19,
-																"101"	when 20,
-																"110"	when 21,
-																"110"	when 22,
-																"111"	when 23,
-																"111"	when 24,
-																"001"	when 26,
-																"010"	when 27,
-																"011"	when 28,
-																"100"	when 29,
-																"101"	when 30,
-																"110"	when 31,
-																"111"	when 32,
-																"000"	when others;
-
+		end if;
+	End Process;
+	
 	
 	-- output pixel is XOR from current MPS and decoded golomb bit
 	BPP_Bit_tdata										<= Decoded_Bit_tdata_reg XOR Curr_MPS;

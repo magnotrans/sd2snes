@@ -49,7 +49,7 @@ module main(
   output ROM_BHE,
   output ROM_BLE,
 
-  /* Bus 2: SRAM, 4Mbit, 8bit, 45ns */
+  /* Bus 2: SRAM, 4Mbit, 8bit, 45ns -> NOT USED; Backup RAM mapped to $E0:0000 in PSRAM */
   inout [7:0] RAM_DATA,
   output [18:0] RAM_ADDR,
   output RAM_CE,
@@ -428,20 +428,25 @@ wire [15:0] dsp_feat;
 wire sdd1_enable = 1'b1;
 
 wire [7:0] SDD1_SNES_DATA_OUT;
-wire [15:0] SDD1_ROM_DATA;
+// when reading from PSRAM, 16-bit width read is performed from S-DD1 core
+wire [15:0] SDD1_ROM_DATA = {ROM_DATA[7:0], ROM_DATA[15:8]};
 wire [21:0] SDD1_ROM_ADDR;
 wire [23:0] SDD1_SNES_ADDR;
 assign SDD1_SNES_ADDR = SNES_ADDRr[2];
 wire [7:0] SDD1_SNES_DATA_IN;
 assign SDD1_SNES_DATA_IN = SNES_DATAr[2];
 
+
+
 // implementation of S-DD1 chip
 SDD1 sdd1_snes(
 	.MCLK(CLK2),
 	.RESET(sdd1_enable),
-	.SRAM_CS(RAM_CE),
-	.ROM_OE(ROM_OE),
-	.ROM_CS(ROM_CE),
+	.SRAM_CS(SDD1_RAM_CE),
+	.SRAM_RD(SDD1_RAM_OE),
+	.SRAM_WR(SDD1_RAM_WE),
+	.ROM_OE(SDD1_ROM_OE),
+	.ROM_CS(SDD1_ROM_CE),
 	.ROM_ADDR(SDD1_ROM_ADDR),
 	.ROM_DATA(SDD1_ROM_DATA),
 	.SNES_ADDR(SDD1_SNES_ADDR),
@@ -552,25 +557,30 @@ address snes_addr(
   .SNES_ADDR(SNES_ADDR), // requested address from SNES
   .SNES_PA(SNES_PA),
   .SNES_ROMSEL(SNES_ROMSEL),
-  .ROM_ADDR(MAPPED_SNES_ADDR),   // Address to request from SRAM (active low)
-  .ROM_HIT(ROM_HIT),     // want to access RAM0
+  // Address to read/write from PSRAM
+  .ROM_ADDR(MAPPED_SNES_ADDR),
+  // '1' when SNES request to access ROM, Backup RAM or BS-X RAM (stored at PSRAM)
+  .ROM_HIT(ROM_HIT),
+  // '1' when SNES request to access backup RAM (stored linearly at PSRAM $E0:0000)
   .IS_SAVERAM(IS_SAVERAM),
+  // '1' when SNES request to access ROM (stored linearly at PSRAM $00:0000)
   .IS_ROM(IS_ROM),
+  // '1' when SNES request to access to PSRAM writable range (Backup RAM or BS-X RAM)
   .IS_WRITABLE(IS_WRITABLE),
   .SAVERAM_MASK(SAVERAM_MASK),
   .ROM_MASK(ROM_MASK),
   //MSU-1
   .msu_enable(msu_enable),
-  //BS-X
+  //BS-X -> disabled
   .use_bsx(use_bsx),
   .bsx_regs(bsx_regs),
   .bs_page_offset(bs_page_offset),
   .bs_page(bs_page),
   .bs_page_enable(bs_page_enable),
   .bsx_tristate(bsx_tristate),
-  //SRTC
+  //SRTC -> disabled
   .srtc_enable(srtc_enable),
-  //uPD77C25
+  //uPD77C25 -> disabled
   .dspx_enable(dspx_enable),
   .dspx_dp_enable(dspx_dp_enable),
   .dspx_a0(DSPX_A0),
@@ -652,6 +662,7 @@ always @(posedge CLK2) begin
   end
 end
 
+// data from FPGA to SNES CPU when it is reading
 assign SNES_DATA = (r213f_enable & ~SNES_PARD & ~r213f_forceread) ? r213fr
                    :(r2100_enable & ~SNES_PAWR & r2100_forcewrite) ? r2100r
                    :(~SNES_READ ^ (r213f_forceread & r213f_enable & ~SNES_PARD)) ?
@@ -675,7 +686,9 @@ wire MCU_WR_HIT = |(STATE & ST_MCU_WR_ADDR);
 wire MCU_RD_HIT = |(STATE & ST_MCU_RD_ADDR);
 wire MCU_HIT = MCU_WR_HIT | MCU_RD_HIT;
 
-assign ROM_ADDR  = (SD_DMA_TO_ROM) ? MCU_ADDR[23:1] : MCU_HIT ? ROM_ADDRr[23:1] : sdd1_enable ? {0, SDD1_ROM_ADDR} : MAPPED_SNES_ADDR[23:1];
+// final address to PSRAM where ROM and SRAM is stored
+assign ROM_ADDR  = (SD_DMA_TO_ROM) ? MCU_ADDR[23:1] : MCU_HIT ? ROM_ADDRr[23:1] : (sdd1_enable & ~(SDD1_RAM_CE & SDD1_ROM_CE))? {0, SDD1_ROM_ADDR} : MAPPED_SNES_ADDR[23:1];
+// lower address bit to select [7:0] (ROM_ADDR0 = '1') or [15:8] (ROM_ADDR0 = '0') byte in the 16-bit word read from PSRAM
 assign ROM_ADDR0 = (SD_DMA_TO_ROM) ? MCU_ADDR[0] : MCU_HIT ? ROM_ADDRr[0] : sdd1_enable ? SDD1_ROM_ADDR[0] : MAPPED_SNES_ADDR[0];
 
 reg[17:0] SNES_DEAD_CNTr;
@@ -789,6 +802,8 @@ end
 reg MCU_WRITE_1;
 always @(posedge CLK2) MCU_WRITE_1<= MCU_WRITE;
 
+// data to write to PSRAM (ROM file at boot, backup RAM or BS-X RAM when game running)
+// no need for S-DD1, since it never writes to PSRAM, only reads
 assign ROM_DATA[7:0] = ROM_ADDR0 ? 
 									(SD_DMA_TO_ROM ? (!MCU_WRITE_1 ? MCU_DOUT : 8'bZ) 
 									: (ROM_HIT & ~SNES_WRITE) ? SNES_DATA 
@@ -802,17 +817,21 @@ assign ROM_DATA[15:8] = ROM_ADDR0 ? 8'bZ
                                         : 8'bZ
                          );
 
-assign ROM_WE = SD_DMA_TO_ROM
-                ?MCU_WRITE
+// write enable for PSRAM; for S-DD1, enabled when accessing backup SRAM for writing
+assign ROM_WE = SD_DMA_TO_ROM?MCU_WRITE
+					 : sdd1_enable ? (SDD1_RAM_CE | SDD1_RAM_WE)
                 : (ROM_HIT & IS_WRITABLE & SNES_CPU_CLK) ? SNES_WRITE
                 : MCU_WR_HIT ? 1'b0
                 : 1'b1;
 
 // OE always active. Overridden by WE when needed.
-//assign ROM_OE = 1'b0;
-//assign ROM_CE = 1'b0;
+assign ROM_OE = 1'b0;
+assign ROM_CE = 1'b0;
 
+// multiplex selector for output chips
+// '1' when accessing high byte
 assign ROM_BHE = ROM_ADDR0;
+// '1' when accessing low byte
 assign ROM_BLE = !ROM_ADDR0;
 
 assign SNES_DATABUS_OE = msu_enable ? 1'b0 :

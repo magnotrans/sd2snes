@@ -48,7 +48,7 @@ entity Input_Manager is
 			ROM_Data_tkeep						: in 	STD_LOGIC_VECTOR(1 downto 0);
 			-- Golomb decoded value
 			Decoded_Bit_tready				: in 	STD_LOGIC;
-			Decoded_Bit_tuser					: in 	STD_LOGIC_VECTOR(2 downto 0);
+			Decoded_Bit_tuser					: in 	STD_LOGIC_VECTOR(7 downto 0);
 			Decoded_Bit_tvalid				: out STD_LOGIC;
 			Decoded_Bit_tdata					: out STD_LOGIC;
 			Decoded_Bit_tlast					: out STD_LOGIC);
@@ -126,7 +126,6 @@ architecture Behavioral of Input_Manager is
 	signal Bit_Serializer_tvalid			: STD_LOGIC := '0';
 	signal Bit_Serializer_tdata			: STD_LOGIC_VECTOR(7 downto 0) := (others => '0');
 	
-	signal Gx_Run_End							: STD_LOGIC := '0';
 	signal G0_Run_End							: STD_LOGIC := '0';
 	signal G1_Run_End							: STD_LOGIC := '0';
 	signal G2_Run_End							: STD_LOGIC := '0';
@@ -227,157 +226,108 @@ begin
 		end if;
 	End Process;
 	
-  	-- serializer is updated when last bit in the run is out of any Golomb decoder or after reading header
-  	Process( FSM_Load_Golomb, G0_Run_End, G1_Run_End, G2_Run_End, G3_Run_End, G4_Run_End, G5_Run_End, G6_Run_End,
-  				G7_Run_End, G0_shift, G1_shift, G2_shift, G3_shift, G4_shift, G5_shift, G6_shift, G7_shift )
-  	Begin
-  		-- when header is already read, shift first 4 bits
-  		if( FSM_Load_Golomb = '1' ) then
-  			Bit_Shift_Rdy								<= '1';
-  			Bit_Shift_Cnt								<= "011";
-  		elsif( G0_Run_End = '1' ) then
-   	 	Bit_Shift_Rdy								<= '1';
-  			Bit_Shift_Cnt								<= G0_shift;
-  		elsif( G1_Run_End = '1' ) then
-    	 	Bit_Shift_Rdy								<= '1';
-  			Bit_Shift_Cnt								<= G1_shift;
-  		elsif( G2_Run_End = '1' ) then
-     		Bit_Shift_Rdy								<= '1';
-  			Bit_Shift_Cnt								<= G2_shift;
-  		elsif( G3_Run_End = '1' ) then
-     	 	Bit_Shift_Rdy								<= '1';
-  			Bit_Shift_Cnt								<= G3_shift;
-  		elsif( G4_Run_End = '1' ) then
-     	 	Bit_Shift_Rdy								<= '1';
-  			Bit_Shift_Cnt								<= G4_shift;
-  		elsif( G5_Run_End = '1' ) then
-    	 	Bit_Shift_Rdy								<= '1';
-  			Bit_Shift_Cnt								<= G5_shift;
-  		elsif( G6_Run_End = '1' ) then
-    	 	Bit_Shift_Rdy								<= '1';
-  			Bit_Shift_Cnt								<= G6_shift;
-  		elsif( G7_Run_End = '1' ) then
-    	 	Bit_Shift_Rdy								<= '1';
-  			Bit_Shift_Cnt								<= G7_shift;
-  		else
-  		  	Bit_Shift_Rdy								<= '0';
-  			Bit_Shift_Cnt								<= "000";
-  		end if;
-  	End Process;
-
+--  	-- serializer is updated when last bit in the run is out of any Golomb decoder or after reading header
+--  	Process( FSM_Load_Golomb, G0_Run_End, G1_Run_End, G2_Run_End, G3_Run_End, G4_Run_End, G5_Run_End, G6_Run_End,
+--  				G7_Run_End, G0_shift, G1_shift, G2_shift, G3_shift, G4_shift, G5_shift, G6_shift, G7_shift )
+--  	Begin
+--		Bit_Shift_Cnt									<= "000";
+--  		-- when header is already read, shift first 4 bits
+--  		if( FSM_Load_Golomb = '1' ) then
+--  			Bit_Shift_Cnt								<= "011";
+--  		end if;
+--  		
+--		if( G0_Run_End = '1' ) then
+--  			Bit_Shift_Cnt								<= G0_shift;
+--  		end if;
+--  		
+--		if( G1_Run_End = '1' ) then
+--  			Bit_Shift_Cnt								<= G1_shift;
+--  		end if;
+--  		
+--		if( G2_Run_End = '1' ) then
+--  			Bit_Shift_Cnt								<= G2_shift;
+--  		end if;
+--  		
+--		if( G3_Run_End = '1' ) then
+--  			Bit_Shift_Cnt								<= G3_shift;
+--  		end if;
+--  		
+--		if( G4_Run_End = '1' ) then
+--  			Bit_Shift_Cnt								<= G4_shift;
+--  		end if;
+--  		
+--		if( G5_Run_End = '1' ) then
+--  			Bit_Shift_Cnt								<= G5_shift;
+--  		end if;
+--  		
+--		if( G6_Run_End = '1' ) then
+--  			Bit_Shift_Cnt								<= G6_shift;
+--  		end if;
+--  		
+--		if( G7_Run_End = '1' ) then
+--  			Bit_Shift_Cnt								<= G7_shift;
+--  		end if;
+--  	End Process;
+--	Bit_Shift_Rdy										<= FSM_Load_Golomb OR G0_Run_End OR G1_Run_End OR G2_Run_End OR G3_Run_End OR
+--																G4_Run_End OR G5_Run_End OR G6_Run_End OR G7_Run_End;
   	
-  	-- select which Golomb decoder to request the bit to
+  	
+  	-- serializer is updated when last bit in the run is out of any Golomb decoder or after reading header
 	Process( clk )
 	Begin
-		if rising_edge( clk ) then
-			Decoded_Bit_tvalid						<= Decoded_Bit_tready;
+		if rising_edge( clk ) then		
+			Bit_Shift_Rdy								<= FSM_Load_Golomb OR G0_Run_End OR G1_Run_End OR G2_Run_End OR G3_Run_End OR
+																G4_Run_End OR G5_Run_End OR G6_Run_End OR G7_Run_End;
+
+			-- when header is already read, shift first 4 bits
+			if( FSM_Load_Golomb = '1' ) then
+				Bit_Shift_Cnt								<= "011";
+			end if;
 			
-			if( Decoded_Bit_tready = '1' ) then
-				Decoded_Bit_tuser_i					<= Decoded_Bit_tuser;
-				case( Decoded_Bit_tuser ) is
-					when "000" =>
-						Decoded_G0_tready				<= '1';
-						Decoded_G1_tready				<= '0';
-						Decoded_G2_tready				<= '0';
-						Decoded_G3_tready				<= '0';
-						Decoded_G4_tready				<= '0';
-						Decoded_G5_tready				<= '0';
-						Decoded_G6_tready				<= '0';
-						Decoded_G7_tready				<= '0';
-	
-					when "001" =>
-						Decoded_G0_tready				<= '0';
-						Decoded_G1_tready				<= '1';
-						Decoded_G2_tready				<= '0';
-						Decoded_G3_tready				<= '0';
-						Decoded_G4_tready				<= '0';
-						Decoded_G5_tready				<= '0';
-						Decoded_G6_tready				<= '0';
-						Decoded_G7_tready				<= '0';					
-	
-					when "010" =>
-						Decoded_G0_tready				<= '0';
-						Decoded_G1_tready				<= '0';
-						Decoded_G2_tready				<= '1';
-						Decoded_G3_tready				<= '0';
-						Decoded_G4_tready				<= '0';
-						Decoded_G5_tready				<= '0';
-						Decoded_G6_tready				<= '0';
-						Decoded_G7_tready				<= '0';
-						
-					when "011" =>
-						Decoded_G0_tready				<= '0';
-						Decoded_G1_tready				<= '0';
-						Decoded_G2_tready				<= '0';
-						Decoded_G3_tready				<= '1';
-						Decoded_G4_tready				<= '0';
-						Decoded_G5_tready				<= '0';
-						Decoded_G6_tready				<= '0';
-						Decoded_G7_tready				<= '0';
-						
-					when "100" =>
-						Decoded_G0_tready				<= '0';
-						Decoded_G1_tready				<= '0';
-						Decoded_G2_tready				<= '0';
-						Decoded_G3_tready				<= '0';
-						Decoded_G4_tready				<= '1';
-						Decoded_G5_tready				<= '0';
-						Decoded_G6_tready				<= '0';
-						Decoded_G7_tready				<= '0';
-					
-					when "101" =>
-						Decoded_G0_tready				<= '0';
-						Decoded_G1_tready				<= '0';
-						Decoded_G2_tready				<= '0';
-						Decoded_G3_tready				<= '0';
-						Decoded_G4_tready				<= '0';
-						Decoded_G5_tready				<= '1';
-						Decoded_G6_tready				<= '0';
-						Decoded_G7_tready				<= '0';
-						
-					when "110" =>
-						Decoded_G0_tready				<= '0';
-						Decoded_G1_tready				<= '0';
-						Decoded_G2_tready				<= '0';
-						Decoded_G3_tready				<= '0';
-						Decoded_G4_tready				<= '0';
-						Decoded_G5_tready				<= '0';
-						Decoded_G6_tready				<= '1';
-						Decoded_G7_tready				<= '0';
-						
-					when "111" =>
-						Decoded_G0_tready				<= '0';
-						Decoded_G1_tready				<= '0';
-						Decoded_G2_tready				<= '0';
-						Decoded_G3_tready				<= '0';
-						Decoded_G4_tready				<= '0';
-						Decoded_G5_tready				<= '0';
-						Decoded_G6_tready				<= '0';
-						Decoded_G7_tready				<= '1';
-						
-					when others =>
-						Decoded_G0_tready				<= '0';
-						Decoded_G1_tready				<= '0';
-						Decoded_G2_tready				<= '0';
-						Decoded_G3_tready				<= '0';
-						Decoded_G4_tready				<= '0';
-						Decoded_G5_tready				<= '0';
-						Decoded_G6_tready				<= '0';
-						Decoded_G7_tready				<= '0';
-				end case;
-			else
-				Decoded_G0_tready						<= '0';
-				Decoded_G1_tready						<= '0';
-				Decoded_G2_tready						<= '0';
-				Decoded_G3_tready						<= '0';
-				Decoded_G4_tready						<= '0';
-				Decoded_G5_tready						<= '0';
-				Decoded_G6_tready						<= '0';
-				Decoded_G7_tready						<= '0';
+			if( G0_Run_End = '1' ) then
+				Bit_Shift_Cnt								<= G0_shift;
+			end if;
+			
+			if( G1_Run_End = '1' ) then
+				Bit_Shift_Cnt								<= G1_shift;
+			end if;
+			
+			if( G2_Run_End = '1' ) then
+				Bit_Shift_Cnt								<= G2_shift;
+			end if;
+			
+			if( G3_Run_End = '1' ) then
+				Bit_Shift_Cnt								<= G3_shift;
+			end if;
+			
+			if( G4_Run_End = '1' ) then
+				Bit_Shift_Cnt								<= G4_shift;
+			end if;
+			
+			if( G5_Run_End = '1' ) then
+				Bit_Shift_Cnt								<= G5_shift;
+			end if;
+			
+			if( G6_Run_End = '1' ) then
+				Bit_Shift_Cnt								<= G6_shift;
+			end if;
+			
+			if( G7_Run_End = '1' ) then
+				Bit_Shift_Cnt								<= G7_shift;
 			end if;
 		end if;
 	End Process;
-    
+	
+	-- select which Golomb decoder to request the bit to
+   Decoded_G0_tready									<= Decoded_Bit_tuser(0) AND Decoded_Bit_tready;
+	Decoded_G1_tready									<= Decoded_Bit_tuser(1) AND Decoded_Bit_tready;
+	Decoded_G2_tready									<= Decoded_Bit_tuser(2) AND Decoded_Bit_tready;
+	Decoded_G3_tready									<= Decoded_Bit_tuser(3) AND Decoded_Bit_tready;
+	Decoded_G4_tready									<= Decoded_Bit_tuser(4) AND Decoded_Bit_tready;
+	Decoded_G5_tready									<= Decoded_Bit_tuser(5) AND Decoded_Bit_tready;
+	Decoded_G6_tready									<= Decoded_Bit_tuser(6) AND Decoded_Bit_tready;
+	Decoded_G7_tready									<= Decoded_Bit_tuser(7) AND Decoded_Bit_tready;
+						
    -- data in for feeding Golomb decoders
   	G0_din												<= Bit_Serializer_tdata(0 downto 0);
    G1_din												<= Bit_Serializer_tdata(1 downto 0);
@@ -485,29 +435,79 @@ begin
 	       		dout_tlast							=> Decoded_G7_tlast );
 
 
-	-- multiplexor for routing Golomb decoded bit to module's output
-	with Decoded_Bit_tuser_i select
-		Decoded_Bit_tdata_i							<= Decoded_G7_tdata	when "111",
-																Decoded_G6_tdata	when "110",
-																Decoded_G5_tdata	when "101",
-																Decoded_G4_tdata	when "100",
-																Decoded_G3_tdata	when "011",
-																Decoded_G2_tdata	when "010",
-																Decoded_G1_tdata	when "001",
-																Decoded_G0_tdata	when others;
-
-	with Decoded_Bit_tuser_i select
-		Decoded_Bit_tlast_i							<= Decoded_G7_tlast	when "111",
-																Decoded_G6_tlast	when "110",
-																Decoded_G5_tlast	when "101",
-																Decoded_G4_tlast	when "100",
-																Decoded_G3_tlast	when "011",
-																Decoded_G2_tlast	when "010",
-																Decoded_G1_tlast	when "001",
-																Decoded_G0_tlast	when others;
+--	-- multiplexor for routing Golomb decoded bit to module's output
+--	with Decoded_Bit_tuser_i select
+--		Decoded_Bit_tdata_i							<= Decoded_G7_tdata	when "111",
+--																Decoded_G6_tdata	when "110",
+--																Decoded_G5_tdata	when "101",
+--																Decoded_G4_tdata	when "100",
+--																Decoded_G3_tdata	when "011",
+--																Decoded_G2_tdata	when "010",
+--																Decoded_G1_tdata	when "001",
+--																Decoded_G0_tdata	when others;
+--
+--	with Decoded_Bit_tuser_i select
+--		Decoded_Bit_tlast_i							<= Decoded_G7_tlast	when "111",
+--																Decoded_G6_tlast	when "110",
+--																Decoded_G5_tlast	when "101",
+--																Decoded_G4_tlast	when "100",
+--																Decoded_G3_tlast	when "011",
+--																Decoded_G2_tlast	when "010",
+--																Decoded_G1_tlast	when "001",
+--																Decoded_G0_tlast	when others;
 
 	Decoded_Bit_tdata									<= Decoded_Bit_tdata_i;
 	Decoded_Bit_tlast									<= Decoded_Bit_tlast_i;
+	Process(clk)
+	Begin
+		if rising_edge( clk ) then
+			Decoded_Bit_tvalid							<= Decoded_Bit_tready;
+
+			-- multiplexor for routing Golomb decoded bit to module's output
+			if( Decoded_Bit_tready = '1' ) then
+				if( Decoded_Bit_tuser(0) = '1' ) then
+					Decoded_Bit_tdata_i				<= Decoded_G0_tdata;
+					Decoded_Bit_tlast_i				<= Decoded_G0_tlast;
+				end if;
+				
+				if( Decoded_Bit_tuser(1) = '1' ) then
+					Decoded_Bit_tdata_i				<= Decoded_G1_tdata;
+					Decoded_Bit_tlast_i				<= Decoded_G1_tlast;
+				end if;
+				
+				if( Decoded_Bit_tuser(2) = '1' ) then
+					Decoded_Bit_tdata_i				<= Decoded_G2_tdata;
+					Decoded_Bit_tlast_i				<= Decoded_G2_tlast;
+				end if;
+				
+				if( Decoded_Bit_tuser(3) = '1' ) then
+					Decoded_Bit_tdata_i				<= Decoded_G3_tdata;
+					Decoded_Bit_tlast_i				<= Decoded_G3_tlast;
+				end if;
+				
+				if( Decoded_Bit_tuser(4) = '1' ) then
+					Decoded_Bit_tdata_i				<= Decoded_G4_tdata;
+					Decoded_Bit_tlast_i				<= Decoded_G4_tlast;
+				end if;
+				
+				if( Decoded_Bit_tuser(5) = '1' ) then
+					Decoded_Bit_tdata_i				<= Decoded_G5_tdata;
+					Decoded_Bit_tlast_i				<= Decoded_G5_tlast;
+				end if;
+				
+				if( Decoded_Bit_tuser(6) = '1' ) then
+					Decoded_Bit_tdata_i				<= Decoded_G6_tdata;
+					Decoded_Bit_tlast_i				<= Decoded_G6_tlast;
+				end if;
+
+				if( Decoded_Bit_tuser(7) = '1' ) then
+					Decoded_Bit_tdata_i				<= Decoded_G7_tdata;
+					Decoded_Bit_tlast_i				<= Decoded_G7_tlast;
+				end if;
+			end if;
+		end if;
+	End Process;
+	
 	
 	-- FSM for controlling input data into the FIFO and serialized data to
 	-- Golomb decoders

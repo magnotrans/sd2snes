@@ -67,7 +67,7 @@ architecture Behavioral of SDD1_Core is
 				ROM_Data_tkeep						: in 	STD_LOGIC_VECTOR(1 downto 0);
 				-- Golomb decoded value
 				Decoded_Bit_tready				: in 	STD_LOGIC;
-				Decoded_Bit_tuser					: in 	STD_LOGIC_VECTOR(2 downto 0);
+				Decoded_Bit_tuser					: in 	STD_LOGIC_VECTOR(7 downto 0);
 				Decoded_Bit_tvalid				: out STD_LOGIC;
 				Decoded_Bit_tdata					: out STD_LOGIC;
 				Decoded_Bit_tlast					: out STD_LOGIC);
@@ -81,7 +81,7 @@ architecture Behavioral of SDD1_Core is
 				Header_Context						: in	STD_LOGIC_VECTOR(1 downto 0);
 				-- run data from input manager
 				Decoded_Bit_tready 				: out STD_LOGIC;
-				Decoded_Bit_tuser					: out STD_LOGIC_VECTOR(2 downto 0);
+				Decoded_Bit_tuser					: out STD_LOGIC_VECTOR(7 downto 0);
 				Decoded_Bit_tvalid				: in 	STD_LOGIC;
 				Decoded_Bit_tdata					: in 	STD_LOGIC;
 				Decoded_Bit_tlast					: in 	STD_LOGIC;
@@ -116,7 +116,7 @@ architecture Behavioral of SDD1_Core is
 	signal Header_Context						: STD_LOGIC_VECTOR(1 downto 0) := "00";
 					
 	signal Decoded_Bit_tready					: STD_LOGIC := '0';
-	signal Decoded_Bit_tuser					: STD_LOGIC_VECTOR(2 downto 0) := "000";
+	signal Decoded_Bit_tuser					: STD_LOGIC_VECTOR(7 downto 0) := (others => '0');
 	signal Decoded_Bit_tvalid					: STD_LOGIC := '0';
 	signal Decoded_Bit_tdata					: STD_LOGIC := '0';
 	signal Decoded_Bit_tlast					: STD_LOGIC := '0';
