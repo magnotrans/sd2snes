@@ -1,47 +1,5 @@
-EESchema Schematic File Version 2
-LIBS:power
-LIBS:device
-LIBS:transistors
-LIBS:conn
-LIBS:linear
-LIBS:regul
-LIBS:74xx
-LIBS:cmos4000
-LIBS:adc-dac
-LIBS:memory
-LIBS:xilinx
-LIBS:special
-LIBS:microcontrollers
-LIBS:dsp
-LIBS:microchip
-LIBS:analog_switches
-LIBS:motorola
-LIBS:texas
-LIBS:intel
-LIBS:audio
-LIBS:interface
-LIBS:digital-audio
-LIBS:philips
-LIBS:display
-LIBS:cypress
-LIBS:siliconi
-LIBS:opto
-LIBS:atmel
-LIBS:contrib
-LIBS:valves
-LIBS:snescart
-LIBS:misc-74
-LIBS:vreg
-LIBS:lpc1754
-LIBS:sd_card
-LIBS:cy62148ev30
-LIBS:mt45w8mw16
-LIBS:cs4344
-LIBS:double_sch_kcom
-LIBS:usb_minib
-LIBS:mic23250
-LIBS:sd2snes-cache
-EELAYER 27 0
+EESchema Schematic File Version 4
+EELAYER 26 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
@@ -488,7 +446,7 @@ Wire Wire Line
 Wire Wire Line
 	6700 5000 7950 5000
 $Comp
-L GND #PWR045
+L power:GND #PWR045
 U 1 1 4E2C17DC
 P 4200 7400
 F 0 "#PWR045" H 4200 7400 30  0001 C CNN
@@ -501,7 +459,7 @@ $EndComp
 Text GLabel 5100 7200 2    50   Output ~ 0
 /USEBATT
 $Comp
-L JUMPER JP402
+L Device:Jumper JP402
 U 1 1 4E2C1796
 P 4700 7200
 F 0 "JP402" H 4700 7100 60  0000 C CNN
@@ -551,7 +509,7 @@ $EndComp
 Text Notes 6400 6250 0    50   ~ 0
 open in case of in-circuit PIC programming
 $Comp
-L JUMPER JP401
+L Device:Jumper JP401
 U 1 1 4C86265B
 P 7300 5950
 F 0 "JP401" H 7300 5850 60  0000 C CNN
@@ -562,7 +520,7 @@ F 3 "" H 7300 5950 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R407
+L Device:R R407
 U 1 1 4C814430
 P 1400 3700
 F 0 "R407" V 1300 3700 50  0000 C CNN
@@ -573,7 +531,7 @@ F 3 "" H 1400 3700 60  0001 C CNN
 	-1   0    0    1   
 $EndComp
 $Comp
-L +3.3V #PWR046
+L power:+3.3V #PWR046
 U 1 1 4C814422
 P 1400 3400
 F 0 "#PWR046" H 1400 3360 30  0001 C CNN
@@ -600,7 +558,7 @@ NoConn ~ 3200 3700
 NoConn ~ 3200 2800
 NoConn ~ 3200 2500
 $Comp
-L R R422
+L Device:R R422
 U 1 1 4C5608C9
 P 7450 4200
 F 0 "R422" V 7400 4450 50  0000 C CNN
@@ -611,7 +569,7 @@ F 3 "" H 7450 4200 60  0001 C CNN
 	0    1    1    0   
 $EndComp
 $Comp
-L R R421
+L Device:R R421
 U 1 1 4C5608C6
 P 7450 4100
 F 0 "R421" V 7400 4350 50  0000 C CNN
@@ -635,7 +593,7 @@ F 3 "" H 8500 6400 60  0001 C CNN
 	1    0    0    1   
 $EndComp
 $Comp
-L GND #PWR047
+L power:GND #PWR047
 U 1 1 4C4A0B6E
 P 7950 6700
 F 0 "#PWR047" H 7950 6700 30  0001 C CNN
@@ -654,7 +612,7 @@ DAC_/DEM
 Text GLabel 2700 3800 0    50   Output ~ 0
 DIN+MCU_/OVR
 $Comp
-L C C412
+L Device:C C412
 U 1 1 4C1286D5
 P 10950 3100
 F 0 "C412" H 11000 3200 50  0000 L CNN
@@ -665,7 +623,7 @@ F 3 "" H 10950 3100 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L LED D403
+L Device:LED D403
 U 1 1 4C0DA78D
 P 800 2500
 F 0 "D403" H 800 2600 50  0000 C CNN
@@ -676,7 +634,7 @@ F 3 "" H 800 2500 60  0001 C CNN
 	0    -1   1    0   
 $EndComp
 $Comp
-L R R403
+L Device:R R403
 U 1 1 4C0DA785
 P 2000 3200
 F 0 "R403" V 2050 2950 50  0000 C CNN
@@ -704,7 +662,7 @@ Reset button
 Text Notes 750  1600 0    50   ~ 0
 2mA low current LEDs
 $Comp
-L C C405
+L Device:C C405
 U 1 1 4C063C47
 P 1400 5600
 F 0 "C405" H 1400 5700 50  0000 L CNN
@@ -715,7 +673,7 @@ F 3 "" H 1400 5600 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R404
+L Device:R R404
 U 1 1 4C063C2F
 P 1400 4900
 F 0 "R404" V 1300 4900 50  0000 C CNN
@@ -726,7 +684,7 @@ F 3 "" H 1400 4900 60  0001 C CNN
 	-1   0    0    1   
 $EndComp
 $Comp
-L +3.3V #PWR048
+L power:+3.3V #PWR048
 U 1 1 4C063C16
 P 1400 4600
 F 0 "#PWR048" H 1400 4560 30  0001 C CNN
@@ -737,7 +695,7 @@ F 3 "" H 1400 4600 60  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L R R423
+L Device:R R423
 U 1 1 4C01596A
 P 9300 5000
 F 0 "R423" V 9250 5250 50  0000 C CNN
@@ -750,7 +708,7 @@ $EndComp
 Text GLabel 2700 5100 0    50   Input ~ 0
 /RESET
 $Comp
-L +5V #PWR049
+L power:+5V #PWR049
 U 1 1 4BFBFF63
 P 10500 5750
 F 0 "#PWR049" H 10500 5840 20  0001 C CNN
@@ -761,7 +719,7 @@ F 3 "" H 10500 5750 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L +3.3V #PWR050
+L power:+3.3V #PWR050
 U 1 1 4BFBFF50
 P 9200 5750
 F 0 "#PWR050" H 9200 5710 30  0001 C CNN
@@ -772,7 +730,7 @@ F 3 "" H 9200 5750 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR051
+L power:GND #PWR051
 U 1 1 4BFBFF44
 P 8850 5850
 F 0 "#PWR051" H 8850 5850 30  0001 C CNN
@@ -811,7 +769,7 @@ RX3
 Text GLabel 7000 3900 2    50   Output ~ 0
 TX3
 $Comp
-L R R405
+L Device:R R405
 U 1 1 4BF850D1
 P 7250 3300
 F 0 "R405" V 7200 3550 50  0000 C CNN
@@ -822,7 +780,7 @@ F 3 "" H 7250 3300 60  0001 C CNN
 	0    1    1    0   
 $EndComp
 $Comp
-L R R406
+L Device:R R406
 U 1 1 4BF850A9
 P 7450 5100
 F 0 "R406" V 7400 4850 50  0000 C CNN
@@ -833,7 +791,7 @@ F 3 "" H 7450 5100 60  0001 C CNN
 	0    -1   1    0   
 $EndComp
 $Comp
-L +3.3V #PWR052
+L power:+3.3V #PWR052
 U 1 1 4BF84ABB
 P 1100 1900
 F 0 "#PWR052" H 1100 1860 30  0001 C CNN
@@ -844,7 +802,7 @@ F 3 "" H 1100 1900 60  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L R R402
+L Device:R R402
 U 1 1 4BF847B1
 P 2000 3100
 F 0 "R402" V 2050 2850 50  0000 C CNN
@@ -855,7 +813,7 @@ F 3 "" H 2000 3100 60  0001 C CNN
 	0    1    1    0   
 $EndComp
 $Comp
-L R R401
+L Device:R R401
 U 1 1 4BF847A7
 P 2000 3000
 F 0 "R401" V 2050 2750 50  0000 C CNN
@@ -866,7 +824,7 @@ F 3 "" H 2000 3000 60  0001 C CNN
 	0    1    1    0   
 $EndComp
 $Comp
-L LED D401
+L Device:LED D401
 U 1 1 4BF8328D
 P 1400 2500
 F 0 "D401" H 1400 2600 50  0000 C CNN
@@ -877,7 +835,7 @@ F 3 "" H 1400 2500 60  0001 C CNN
 	0    -1   1    0   
 $EndComp
 $Comp
-L LED D402
+L Device:LED D402
 U 1 1 4BF8324A
 P 1100 2500
 F 0 "D402" H 1100 2600 50  0000 C CNN
@@ -888,7 +846,7 @@ F 3 "" H 1100 2500 60  0001 C CNN
 	0    -1   1    0   
 $EndComp
 $Comp
-L GND #PWR053
+L power:GND #PWR053
 U 1 1 4BF6C1FC
 P 5850 7600
 F 0 "#PWR053" H 5850 7600 30  0001 C CNN
@@ -899,7 +857,7 @@ F 3 "" H 5850 7600 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L +3.3V #PWR054
+L power:+3.3V #PWR054
 U 1 1 4BF6C1F7
 P 5850 6800
 F 0 "#PWR054" H 5850 6760 30  0001 C CNN
@@ -910,7 +868,7 @@ F 3 "" H 5850 6800 60  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L C C404
+L Device:C C404
 U 1 1 4BF6BFE6
 P 6600 7200
 F 0 "C404" H 6650 7300 50  0000 L CNN
@@ -921,7 +879,7 @@ F 3 "" H 6600 7200 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C403
+L Device:C C403
 U 1 1 4BF6BFE5
 P 6350 7200
 F 0 "C403" H 6400 7300 50  0000 L CNN
@@ -932,7 +890,7 @@ F 3 "" H 6350 7200 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C402
+L Device:C C402
 U 1 1 4BF6BFE2
 P 6100 7200
 F 0 "C402" H 6150 7300 50  0000 L CNN
@@ -943,7 +901,7 @@ F 3 "" H 6100 7200 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C401
+L Device:C C401
 U 1 1 4BF6BFE1
 P 5850 7200
 F 0 "C401" H 5900 7300 50  0000 L CNN
@@ -954,7 +912,7 @@ F 3 "" H 5850 7200 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C411
+L Device:C C411
 U 1 1 4BF6BFBB
 P 10700 3100
 F 0 "C411" H 10750 3200 50  0000 L CNN
@@ -975,7 +933,7 @@ CIC_DATA0
 Text GLabel 7000 2400 2    50   3State ~ 0
 CIC_DATA1
 $Comp
-L GND #PWR055
+L power:GND #PWR055
 U 1 1 4BF0021F
 P 9600 5200
 F 0 "#PWR055" H 9600 5200 30  0001 C CNN
@@ -986,7 +944,7 @@ F 3 "" H 9600 5200 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L USB_MINIB J421
+L usb_minib:USB_MINIB J421
 U 1 1 4BF00175
 P 10100 4700
 F 0 "J421" H 10100 5100 60  0000 C CNN
@@ -999,7 +957,7 @@ F 5 "Assmann A-USBB-M5" H 10100 4700 60  0001 C CNN "Value"
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR056
+L power:GND #PWR056
 U 1 1 4BEFBCAA
 P 1200 6850
 F 0 "#PWR056" H 1200 6850 30  0001 C CNN
@@ -1035,7 +993,7 @@ CCLK
 Text GLabel 7000 3800 2    50   Input ~ 0
 DONE
 $Comp
-L SD_CARD J411
+L sd_card:SD_CARD J411
 U 1 1 4BAA6A9C
 P 9650 3250
 F 0 "J411" H 9350 3750 60  0000 C CNN
@@ -1050,7 +1008,7 @@ SNES_/RESET
 Text GLabel 7650 5950 2    50   Output ~ 0
 CIC_MCLR
 $Comp
-L GND #PWR057
+L power:GND #PWR057
 U 1 1 4BEECBF1
 P 3100 6850
 F 0 "#PWR057" H 3100 6850 30  0001 C CNN
@@ -1061,7 +1019,7 @@ F 3 "" H 3100 6850 60  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L GND #PWR058
+L power:GND #PWR058
 U 1 1 4BEECBEF
 P 2500 6850
 F 0 "#PWR058" H 2500 6850 30  0001 C CNN
@@ -1072,7 +1030,7 @@ F 3 "" H 2500 6850 60  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L GND #PWR059
+L power:GND #PWR059
 U 1 1 4BEECBEE
 P 2200 6850
 F 0 "#PWR059" H 2200 6850 30  0001 C CNN
@@ -1083,7 +1041,7 @@ F 3 "" H 2200 6850 60  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L GND #PWR060
+L power:GND #PWR060
 U 1 1 4BEECBE5
 P 1600 6850
 F 0 "#PWR060" H 1600 6850 30  0001 C CNN
@@ -1094,7 +1052,7 @@ F 3 "" H 1600 6850 60  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L C C409
+L Device:C C409
 U 1 1 4BEECBD1
 P 3100 6600
 F 0 "C409" H 3150 6700 50  0000 L CNN
@@ -1105,7 +1063,7 @@ F 3 "" H 3100 6600 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C408
+L Device:C C408
 U 1 1 4BEECBCD
 P 2500 6600
 F 0 "C408" H 2550 6700 50  0000 L CNN
@@ -1116,7 +1074,7 @@ F 3 "" H 2500 6600 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C407
+L Device:C C407
 U 1 1 4BEECBCA
 P 2200 6600
 F 0 "C407" H 2250 6700 50  0000 L CNN
@@ -1127,7 +1085,7 @@ F 3 "" H 2200 6600 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C406
+L Device:C C406
 U 1 1 4BEECBC1
 P 1600 6600
 F 0 "C406" H 1650 6700 50  0000 L CNN
@@ -1158,7 +1116,7 @@ SD_DAT0
 Text GLabel 8950 2650 1    50   Input ~ 0
 SD_CLK
 $Comp
-L CRYSTAL X402
+L Device:Crystal X402
 U 1 1 4BC243CB
 P 2800 6200
 F 0 "X402" H 2800 6350 60  0000 C CNN
@@ -1169,7 +1127,7 @@ F 3 "" H 2800 6200 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L CRYSTAL X401
+L Device:Crystal X401
 U 1 1 4BC243C8
 P 1900 6200
 F 0 "X401" H 1900 6350 60  0000 C CNN
@@ -1180,7 +1138,7 @@ F 3 "" H 1900 6200 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR061
+L power:GND #PWR061
 U 1 1 4BB8BBE8
 P 10700 3900
 F 0 "#PWR061" H 10700 3900 30  0001 C CNN
@@ -1191,7 +1149,7 @@ F 3 "" H 10700 3900 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L +3.3V #PWR062
+L power:+3.3V #PWR062
 U 1 1 4BB8BBD6
 P 10700 2650
 F 0 "#PWR062" H 10700 2610 30  0001 C CNN
@@ -1202,7 +1160,7 @@ F 3 "" H 10700 2650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L +3.3V #PWR063
+L power:+3.3V #PWR063
 U 1 1 4BB8BB64
 P 4650 1450
 F 0 "#PWR063" H 4650 1410 30  0001 C CNN
@@ -1213,7 +1171,7 @@ F 3 "" H 4650 1450 60  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L GND #PWR064
+L power:GND #PWR064
 U 1 1 4BB8BB56
 P 4450 6850
 F 0 "#PWR064" H 4450 6850 30  0001 C CNN
@@ -1224,7 +1182,7 @@ F 3 "" H 4450 6850 60  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L +BATT #PWR065
+L power:+BATT #PWR065
 U 1 1 4BB8AE61
 P 4350 1450
 F 0 "#PWR065" H 4350 1400 20  0001 C CNN
@@ -1235,7 +1193,7 @@ F 3 "" H 4350 1450 60  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L +3.3V #PWR066
+L power:+3.3V #PWR066
 U 1 1 4BB8AE12
 P 5250 1450
 F 0 "#PWR066" H 5250 1410 30  0001 C CNN
@@ -1246,7 +1204,7 @@ F 3 "" H 5250 1450 60  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L GND #PWR067
+L power:GND #PWR067
 U 1 1 4BAF2DEB
 P 4650 6850
 F 0 "#PWR067" H 4650 6850 30  0001 C CNN
@@ -1257,7 +1215,7 @@ F 3 "" H 4650 6850 60  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L GND #PWR068
+L power:GND #PWR068
 U 1 1 4BAF2DE3
 P 5100 6850
 F 0 "#PWR068" H 5100 6850 30  0001 C CNN
@@ -1268,7 +1226,7 @@ F 3 "" H 5100 6850 60  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L LPC1754 U401
+L lpc1754:LPC1754 U401
 U 1 1 4B6F321A
 P 5000 4100
 F 0 "U401" H 5000 3700 60  0000 C CNN

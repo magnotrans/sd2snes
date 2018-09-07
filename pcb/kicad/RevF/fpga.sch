@@ -1,47 +1,5 @@
-EESchema Schematic File Version 2
-LIBS:power
-LIBS:device
-LIBS:transistors
-LIBS:conn
-LIBS:linear
-LIBS:regul
-LIBS:74xx
-LIBS:cmos4000
-LIBS:adc-dac
-LIBS:memory
-LIBS:xilinx
-LIBS:special
-LIBS:microcontrollers
-LIBS:dsp
-LIBS:microchip
-LIBS:analog_switches
-LIBS:motorola
-LIBS:texas
-LIBS:intel
-LIBS:audio
-LIBS:interface
-LIBS:digital-audio
-LIBS:philips
-LIBS:display
-LIBS:cypress
-LIBS:siliconi
-LIBS:opto
-LIBS:atmel
-LIBS:contrib
-LIBS:valves
-LIBS:snescart
-LIBS:misc-74
-LIBS:vreg
-LIBS:lpc1754
-LIBS:sd_card
-LIBS:cy62148ev30
-LIBS:mt45w8mw16
-LIBS:cs4344
-LIBS:double_sch_kcom
-LIBS:usb_minib
-LIBS:mic23250
-LIBS:sd2snes-cache
-EELAYER 27 0
+EESchema Schematic File Version 4
+EELAYER 26 0
 EELAYER END
 $Descr A3 16535 11693
 encoding utf-8
@@ -670,7 +628,7 @@ Wire Wire Line
 	3650 10350 3650 10450
 Connection ~ 3400 10350
 $Comp
-L C C234
+L Device:C C234
 U 1 1 4D2F566A
 P 3650 10650
 F 0 "C234" H 3700 10750 50  0000 L CNN
@@ -681,7 +639,7 @@ F 3 "" H 3650 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C233
+L Device:C C233
 U 1 1 4D2F497B
 P 3400 10650
 F 0 "C233" H 3450 10750 50  0000 L CNN
@@ -692,7 +650,7 @@ F 3 "" H 3400 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C232
+L Device:C C232
 U 1 1 4D2F4979
 P 3150 10650
 F 0 "C232" H 3200 10750 50  0000 L CNN
@@ -703,7 +661,7 @@ F 3 "" H 3150 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C215
+L Device:C C215
 U 1 1 4D2F4480
 P 5350 10650
 F 0 "C215" H 5400 10750 50  0000 L CNN
@@ -714,7 +672,7 @@ F 3 "" H 5350 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C231
+L Device:C C231
 U 1 1 4D2F4344
 P 2900 10650
 F 0 "C231" H 2950 10750 50  0000 L CNN
@@ -725,7 +683,7 @@ F 3 "" H 2900 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C209
+L Device:C C209
 U 1 1 4D2F4312
 P 2650 10650
 F 0 "C209" H 2700 10750 50  0000 L CNN
@@ -736,7 +694,7 @@ F 3 "" H 2650 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C214
+L Device:C C214
 U 1 1 4D252B5C
 P 5100 10650
 F 0 "C214" H 5150 10750 50  0000 L CNN
@@ -778,7 +736,7 @@ SPI (MCU interface)
 Text Notes 3700 8150 0    50   ~ 0
 DAC
 $Comp
-L C C224
+L Device:C C224
 U 1 1 4BF5A441
 P 6400 10650
 F 0 "C224" H 6450 10750 50  0000 L CNN
@@ -789,7 +747,7 @@ F 3 "" H 6400 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C223
+L Device:C C223
 U 1 1 4BF5A43F
 P 6150 10650
 F 0 "C223" H 6200 10750 50  0000 L CNN
@@ -1080,7 +1038,7 @@ SNES_REFRESH
 Text GLabel 10900 4550 2    50   Input ~ 0
 SNES_SYS_CLK
 $Comp
-L GND #PWR0113
+L power:GND #PWR0113
 U 1 1 4BADE94E
 P 5800 2000
 F 0 "#PWR0113" H 5800 2000 30  0001 C CNN
@@ -1091,7 +1049,7 @@ F 3 "" H 5800 2000 60  0001 C CNN
 	0    1    1    0   
 $EndComp
 $Comp
-L GND #PWR0114
+L power:GND #PWR0114
 U 1 1 4BADE8CE
 P 8450 10900
 F 0 "#PWR0114" H 8450 10900 30  0001 C CNN
@@ -1124,7 +1082,7 @@ F 3 "" H 4100 10200 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR0117
+L power:GND #PWR0117
 U 1 1 4BADD08B
 P 5650 11100
 F 0 "#PWR0117" H 5650 11100 30  0001 C CNN
@@ -1135,7 +1093,7 @@ F 3 "" H 5650 11100 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR0118
+L power:GND #PWR0118
 U 1 1 4BADD089
 P 4100 11100
 F 0 "#PWR0118" H 4100 11100 30  0001 C CNN
@@ -1146,7 +1104,7 @@ F 3 "" H 4100 11100 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR0119
+L power:GND #PWR0119
 U 1 1 4BADD072
 P 650 11100
 F 0 "#PWR0119" H 650 11100 30  0001 C CNN
@@ -1157,7 +1115,7 @@ F 3 "" H 650 11100 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L +3.3V #PWR0120
+L power:+3.3V #PWR0120
 U 1 1 4BADD05C
 P 650 10200
 F 0 "#PWR0120" H 650 10160 30  0001 C CNN
@@ -1168,7 +1126,7 @@ F 3 "" H 650 10200 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C222
+L Device:C C222
 U 1 1 4BADCE85
 P 5900 10650
 F 0 "C222" H 5950 10750 50  0000 L CNN
@@ -1179,7 +1137,7 @@ F 3 "" H 5900 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C221
+L Device:C C221
 U 1 1 4BADCE7D
 P 5650 10650
 F 0 "C221" H 5700 10750 50  0000 L CNN
@@ -1190,7 +1148,7 @@ F 3 "" H 5650 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C213
+L Device:C C213
 U 1 1 4BADCE7B
 P 4850 10650
 F 0 "C213" H 4900 10750 50  0000 L CNN
@@ -1201,7 +1159,7 @@ F 3 "" H 4850 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C212
+L Device:C C212
 U 1 1 4BADCE7A
 P 4600 10650
 F 0 "C212" H 4650 10750 50  0000 L CNN
@@ -1212,7 +1170,7 @@ F 3 "" H 4600 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C211
+L Device:C C211
 U 1 1 4BADCE78
 P 4350 10650
 F 0 "C211" H 4400 10750 50  0000 L CNN
@@ -1223,7 +1181,7 @@ F 3 "" H 4350 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C210
+L Device:C C210
 U 1 1 4BADCE74
 P 4100 10650
 F 0 "C210" H 4150 10750 50  0000 L CNN
@@ -1234,7 +1192,7 @@ F 3 "" H 4100 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C208
+L Device:C C208
 U 1 1 4BADCE6D
 P 2400 10650
 F 0 "C208" H 2450 10750 50  0000 L CNN
@@ -1245,7 +1203,7 @@ F 3 "" H 2400 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C207
+L Device:C C207
 U 1 1 4BADCE6B
 P 2150 10650
 F 0 "C207" H 2200 10750 50  0000 L CNN
@@ -1256,7 +1214,7 @@ F 3 "" H 2150 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C206
+L Device:C C206
 U 1 1 4BADCE6A
 P 1900 10650
 F 0 "C206" H 1950 10750 50  0000 L CNN
@@ -1267,7 +1225,7 @@ F 3 "" H 1900 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C205
+L Device:C C205
 U 1 1 4BADCE67
 P 1650 10650
 F 0 "C205" H 1700 10750 50  0000 L CNN
@@ -1278,7 +1236,7 @@ F 3 "" H 1650 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C204
+L Device:C C204
 U 1 1 4BADCE65
 P 1400 10650
 F 0 "C204" H 1450 10750 50  0000 L CNN
@@ -1289,7 +1247,7 @@ F 3 "" H 1400 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C203
+L Device:C C203
 U 1 1 4BADCE64
 P 1150 10650
 F 0 "C203" H 1200 10750 50  0000 L CNN
@@ -1300,7 +1258,7 @@ F 3 "" H 1150 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C202
+L Device:C C202
 U 1 1 4BADCE62
 P 900 10650
 F 0 "C202" H 950 10750 50  0000 L CNN
@@ -1311,7 +1269,7 @@ F 3 "" H 900 10650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C201
+L Device:C C201
 U 1 1 4BADCE47
 P 650 10650
 F 0 "C201" H 700 10750 50  0000 L CNN
@@ -1335,7 +1293,7 @@ $EndComp
 Text Notes 6550 1300 0    50   ~ 0
 JTAG
 $Comp
-L +3.3V #PWR0121
+L power:+3.3V #PWR0121
 U 1 1 4BAD12D2
 P 7650 800
 F 0 "#PWR0121" H 7650 760 30  0001 C CNN

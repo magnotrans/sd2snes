@@ -54,7 +54,7 @@ end SDD1;
 architecture Behavioral of SDD1 is
 	-- number of master clock cycles of ROM time access -> 3 cycles = 129 ns
 	--constant ROM_ACCESS_CYCLES					: integer := 3;
-	-- number of SD2SNES clock cycles of ROM time access -> 3 cycles = 125 ns
+	-- number of SD2SNES clock cycles of ROM time access -> 12 cycles = 125 ns
 	constant ROM_ACCESS_CYCLES					: integer := 12;
 
 	COMPONENT SDD1_Core is

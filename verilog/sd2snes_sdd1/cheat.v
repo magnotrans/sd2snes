@@ -72,7 +72,8 @@ reg [1:0] vector_unlock_r = 0;
 wire vector_unlock = |vector_unlock_r;
 
 reg [1:0] reset_unlock_r = 2'b10;
-wire reset_unlock = |reset_unlock_r;
+// MAGNO wire reset_unlock = |reset_unlock_r;
+wire reset_unlock = 1'b0;
 
 reg [23:0] cheat_addr[5:0];
 reg [7:0] cheat_data[5:0];
@@ -177,7 +178,8 @@ end
 // (including masked read by Ultra16)
 always @(posedge clk) begin
   if(SNES_reset_strobe) begin
-    reset_unlock_r <= 2'b11;
+// MAGNO    reset_unlock_r <= 2'b11;
+    reset_unlock_r <= 2'b00;
   end else if(SNES_cycle_start) begin
     if(rst_addr_match & |reset_unlock_r) begin
       reset_unlock_r <= reset_unlock_r - 1;

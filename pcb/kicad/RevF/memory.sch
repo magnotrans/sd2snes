@@ -1,47 +1,5 @@
-EESchema Schematic File Version 2
-LIBS:power
-LIBS:device
-LIBS:transistors
-LIBS:conn
-LIBS:linear
-LIBS:regul
-LIBS:74xx
-LIBS:cmos4000
-LIBS:adc-dac
-LIBS:memory
-LIBS:xilinx
-LIBS:special
-LIBS:microcontrollers
-LIBS:dsp
-LIBS:microchip
-LIBS:analog_switches
-LIBS:motorola
-LIBS:texas
-LIBS:intel
-LIBS:audio
-LIBS:interface
-LIBS:digital-audio
-LIBS:philips
-LIBS:display
-LIBS:cypress
-LIBS:siliconi
-LIBS:opto
-LIBS:atmel
-LIBS:contrib
-LIBS:valves
-LIBS:snescart
-LIBS:misc-74
-LIBS:vreg
-LIBS:lpc1754
-LIBS:sd_card
-LIBS:cy62148ev30
-LIBS:mt45w8mw16
-LIBS:cs4344
-LIBS:double_sch_kcom
-LIBS:usb_minib
-LIBS:mic23250
-LIBS:sd2snes-cache
-EELAYER 27 0
+EESchema Schematic File Version 4
+EELAYER 26 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
@@ -171,7 +129,7 @@ Wire Wire Line
 Wire Wire Line
 	3500 5150 3500 5300
 Wire Wire Line
-	3500 5300 3300 5300
+	3500 5300 3400 5300
 Connection ~ 3400 5300
 Wire Wire Line
 	3550 7200 3550 7300
@@ -235,7 +193,7 @@ Wire Wire Line
 	8500 4050 9000 4050
 Connection ~ 4750 4750
 Wire Wire Line
-	4750 4350 4750 5400
+	4750 4350 4750 4650
 Connection ~ 4750 4650
 Wire Wire Line
 	8500 2550 9000 2550
@@ -262,20 +220,20 @@ Wire Wire Line
 Wire Wire Line
 	9600 3850 9600 5050
 Wire Wire Line
-	9000 5250 9300 5250
+	9000 5250 9150 5250
 Wire Wire Line
 	9150 5950 9150 6050
 Wire Wire Line
 	9150 6050 9600 6050
 Wire Wire Line
-	9600 6350 9600 5450
+	9600 6350 9600 6050
 Connection ~ 9600 6050
 Wire Wire Line
-	7650 2150 7650 1800
+	7650 2150 7650 2000
 Wire Wire Line
-	9950 2000 7650 2000
+	9950 2000 9600 2000
 $Comp
-L CY62148EV30-ZSXI U511
+L cy62148ev30:CY62148EV30-ZSXI U511
 U 1 1 4D49598F
 P 7650 3450
 F 0 "U511" H 7650 3550 60  0000 C CNN
@@ -292,7 +250,7 @@ SRAM battery power
 Text Notes 9800 5300 0    50   ~ 0
 Battery power OE switch
 $Comp
-L +3.3V #PWR031
+L power:+3.3V #PWR031
 U 1 1 4BF2FE97
 P 8350 5050
 F 0 "#PWR031" H 8350 5010 30  0001 C CNN
@@ -303,7 +261,7 @@ F 3 "" H 8350 5050 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR032
+L power:GND #PWR032
 U 1 1 4BF2FE7B
 P 9600 6350
 F 0 "#PWR032" H 9600 6350 30  0001 C CNN
@@ -314,7 +272,7 @@ F 3 "" H 9600 6350 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R511
+L Device:R R511
 U 1 1 4BF2FDAF
 P 9600 3600
 F 0 "R511" V 9680 3600 50  0000 C CNN
@@ -325,7 +283,7 @@ F 3 "" H 9600 3600 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R513
+L Device:R R513
 U 1 1 4BF2FDAC
 P 9150 5700
 F 0 "R513" V 9230 5700 50  0000 C CNN
@@ -336,7 +294,7 @@ F 3 "" H 9150 5700 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R512
+L Device:R R512
 U 1 1 4BF2FDA9
 P 8750 5250
 F 0 "R512" V 8830 5250 50  0000 C CNN
@@ -358,7 +316,7 @@ F 3 "" H 9500 5250 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR033
+L power:GND #PWR033
 U 1 1 4BF1A006
 P 10500 2000
 F 0 "#PWR033" H 10500 2000 30  0001 C CNN
@@ -369,7 +327,7 @@ F 3 "" H 10500 2000 60  0001 C CNN
 	0    -1   -1   0   
 $EndComp
 $Comp
-L +BATT #PWR034
+L power:+BATT #PWR034
 U 1 1 4BF19EA4
 P 8400 1400
 F 0 "#PWR034" H 8400 1350 20  0001 C CNN
@@ -380,7 +338,7 @@ F 3 "" H 8400 1400 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L +3.3V #PWR035
+L power:+3.3V #PWR035
 U 1 1 4BF19E7A
 P 6900 1400
 F 0 "#PWR035" H 6900 1360 30  0001 C CNN
@@ -391,7 +349,7 @@ F 3 "" H 6900 1400 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L DOUBLE_SCH_KCOM2 D511
+L double_sch_kcom:DOUBLE_SCH_KCOM2 D511
 U 1 1 4BF19DCA
 P 7650 1600
 F 0 "D511" H 7800 1475 60  0000 C CNN
@@ -693,7 +651,7 @@ Text GLabel 2050 2150 0    50   Input ~ 0
 ROM_A0
 NoConn ~ 4250 4550
 $Comp
-L GND #PWR036
+L power:GND #PWR036
 U 1 1 4BCA30BF
 P 4750 5400
 F 0 "#PWR036" H 4750 5400 30  0001 C CNN
@@ -708,7 +666,7 @@ ROM_/WE
 Text GLabel 2050 4650 0    50   Input ~ 0
 ROM_/OE
 $Comp
-L C C502
+L Device:C C502
 U 1 1 4BAD3D55
 P 3550 7000
 F 0 "C502" H 3600 7100 50  0000 L CNN
@@ -719,7 +677,7 @@ F 3 "" H 3550 7000 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C511
+L Device:C C511
 U 1 1 4BAD3D53
 P 10150 2000
 F 0 "C511" H 10200 2100 50  0000 L CNN
@@ -730,7 +688,7 @@ F 3 "" H 10150 2000 60  0001 C CNN
 	0    -1   1    0   
 $EndComp
 $Comp
-L C C501
+L Device:C C501
 U 1 1 4BAD3D47
 P 3250 7000
 F 0 "C501" H 3300 7100 50  0000 L CNN
@@ -741,7 +699,7 @@ F 3 "" H 3250 7000 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR037
+L power:GND #PWR037
 U 1 1 4BAD3D2B
 P 3550 7300
 F 0 "#PWR037" H 3550 7300 30  0001 C CNN
@@ -763,7 +721,7 @@ F 3 "" H 3550 6700 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR039
+L power:GND #PWR039
 U 1 1 4BAD3D20
 P 3250 7300
 F 0 "#PWR039" H 3250 7300 30  0001 C CNN
@@ -774,7 +732,7 @@ F 3 "" H 3250 7300 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L +3.3V #PWR040
+L power:+3.3V #PWR040
 U 1 1 4BAD3D0B
 P 3250 6700
 F 0 "#PWR040" H 3250 6660 30  0001 C CNN
@@ -785,7 +743,7 @@ F 3 "" H 3250 6700 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR041
+L power:GND #PWR041
 U 1 1 4BAD33A7
 P 3400 5400
 F 0 "#PWR041" H 3400 5400 30  0001 C CNN
@@ -796,7 +754,7 @@ F 3 "" H 3400 5400 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR042
+L power:GND #PWR042
 U 1 1 4BAD339F
 P 7650 5000
 F 0 "#PWR042" H 7650 5000 30  0001 C CNN
@@ -818,7 +776,7 @@ F 3 "" H 3300 1550 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L +3.3V #PWR044
+L power:+3.3V #PWR044
 U 1 1 4BAD32BE
 P 3500 1550
 F 0 "#PWR044" H 3500 1510 30  0001 C CNN
@@ -833,7 +791,7 @@ Text Notes 6300 5700 0    60   ~ 0
 Text Notes 2650 5700 0    60   ~ 0
 128Mbits 70ns PSRAM (ROM area)
 $Comp
-L MT45W8MW16 U501
+L mt45w8mw16:MT45W8MW16 U501
 U 1 1 4B868602
 P 3400 3450
 F 0 "U501" H 3400 3550 60  0000 C CNN
@@ -843,4 +801,18 @@ F 3 "" H 3400 3450 60  0001 C CNN
 	1    3400 3450
 	1    0    0    -1  
 $EndComp
+Wire Wire Line
+	9150 5250 9300 5250
+Wire Wire Line
+	9600 2000 7650 2000
+Wire Wire Line
+	7650 2000 7650 1800
+Wire Wire Line
+	3400 5300 3300 5300
+Wire Wire Line
+	4750 4750 4750 5400
+Wire Wire Line
+	4750 4650 4750 4750
+Wire Wire Line
+	9600 6050 9600 5450
 $EndSCHEMATC
