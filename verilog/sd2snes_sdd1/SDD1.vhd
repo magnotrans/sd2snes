@@ -79,10 +79,10 @@ architecture Behavioral of SDD1 is
 	signal DMA_Triggered							: STD_LOGIC := '0';
 	signal DMA_Channel_Valid					: STD_LOGIC := '0';
 	signal DMA_Channel_Select					: integer range 0 to 7 := 0;
+	signal DMA_Channel_Transfer				: integer range 0 to 7 := 0;
 	signal DMA_Channel_Select_Mask			: STD_LOGIC_VECTOR(7 downto 0) := X"00";
 	signal DMA_Channel_Enable					: STD_LOGIC := '0';
-	signal DMA_Channel_Transfer				: STD_LOGIC_VECTOR(3 downto 0) := "0000";
-	signal DMA_Target_Register					: STD_LOGIC_VECTOR(19 downto 0) := (others => '0');
+	signal DMA_Target_Register					: STD_LOGIC_VECTOR(7 downto 0) := (others => '0');
 	
 	type DMA_Src_Addr_t							is array (0 to 7) of STD_LOGIC_VECTOR(23 downto 0);
 	type DMA_Size_t								is array (0 to 7) of STD_LOGIC_VECTOR(15 downto 0); 
@@ -167,8 +167,13 @@ begin
 				ROM_OE								<= '1';
 			end if;
 		elsif( SNES_RD = '0' ) then
+			-- Low addresses are not mapped
+			if( SNES_ADDR(22) = '0' AND SNES_ADDR(15) = '1' ) then
+				ROM_ADDR								<= SNES_ADDR(23 downto 16) & SNES_ADDR(14 downto 1);
+				ROM_CS								<= '0';
+				ROM_OE								<= '0';
 			-- check which megabit is mapped onto $C0
-			if( SNES_ADDR(23 downto 20) = X"C" ) then
+			elsif( SNES_ADDR(23 downto 20) = X"C" ) then
 				ROM_ADDR								<= Bank_Map_C0(2 downto 0) & SNES_ADDR(19 downto 1);
 				ROM_CS								<= '0';
 				ROM_OE								<= '0';
@@ -232,38 +237,17 @@ begin
 				Bank_Map_E0								<= X"2";
 				Bank_Map_F0								<= X"3";
 				DMA_Channel_Valid						<= '0';
-				DMA_Channel_Select					<= 0;
 				DMA_Channel_Select_Mask				<= X"00";
 				DMA_Channel_Enable					<= '0';
-				DMA_Channel_Transfer					<= "0000";
+				DMA_Channel_Transfer					<= 0;
 			else
-				-- SNES bank $00
-				if( SNES_WR = '0' AND SNES_ADDR(23 downto 4) = X"00480" ) then
+				-- SNES bank $00 -> register $480X can be accesed from any LoROM bank
+				if( SNES_WR = '0' AND SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 4) = X"480" ) then
 					case SNES_ADDR(3 downto 0) is
-						-- register $4800
+						-- register $4800 -> select the DMA channels to sniff
 						when X"0" =>
-							-- register channel number and mask
-							DMA_Channel_Select		<= conv_integer(SNES_DATA_IN(3 downto 0))-1;
-							case( SNES_DATA_IN(3 downto 0) ) is
-								when X"1" =>
-									DMA_Channel_Select_Mask	<= X"01";
-								when X"2" =>
-									DMA_Channel_Select_Mask	<= X"02";
-								when X"3" =>
-									DMA_Channel_Select_Mask	<= X"04";
-								when X"4" =>
-									DMA_Channel_Select_Mask	<= X"08";
-								when X"5" =>
-									DMA_Channel_Select_Mask	<= X"10";
-								when X"6" =>
-									DMA_Channel_Select_Mask	<= X"20";
-								when X"7" =>
-									DMA_Channel_Select_Mask	<= X"40";
-								when X"8" =>
-									DMA_Channel_Select_Mask	<= X"80";
-								when others =>
-									DMA_Channel_Select_Mask	<= X"00";
-							end case;
+							-- register channel mask to sniff writes to $43X-
+							DMA_Channel_Select_Mask	<= SNES_DATA_IN;
 							-- if channel is 0, decoding is disabled
 							if( SNES_DATA_IN = X"00" ) then	
 								DMA_Channel_Valid		<= '0';
@@ -271,10 +255,31 @@ begin
 								DMA_Channel_Valid		<= '1';
 							end if;
 							
-						-- register $4801
+						-- register $4801 -> select the DMA channel to be triggered
+						-- this is used to pre-fetch data from the source address before
+						-- DMA is triggered writing to $420B
 						when X"1" =>
-							DMA_Channel_Enable		<= '1';
-							DMA_Channel_Transfer		<= SNES_DATA_IN(3 downto 0); 
+							case SNES_DATA_IN is
+								when X"02" =>
+									DMA_Channel_Transfer	<= 1;
+								when X"04" =>
+									DMA_Channel_Transfer	<= 2;
+								when X"08" =>
+									DMA_Channel_Transfer	<= 3;
+								when X"10" =>
+									DMA_Channel_Transfer	<= 4;
+								when X"20" =>
+									DMA_Channel_Transfer	<= 5;
+								when X"40" =>
+									DMA_Channel_Transfer	<= 6;
+								when X"80" =>
+									DMA_Channel_Transfer	<= 7;									
+								when others => 
+									DMA_Channel_Transfer	<= 0;
+							end case;
+							if( (DMA_Channel_Select_Mask AND SNES_DATA_IN) /= X"00" ) then
+								DMA_Channel_Enable	<= '1';
+							end if;
 							
 						-- register $4804
 						when X"4" =>
@@ -304,44 +309,55 @@ begin
 		end if;
 	End Process;
 	
-	-- SNES address for DMA register configuration
-	DMA_Target_Register								<= X"0043" & conv_std_logic_vector(DMA_Channel_Select, 4);
+	-- DMA channel mask decoded from register address $43X-
+	with SNES_ADDR(7 downto 4) select
+		DMA_Target_Register							<= X"01" when X"0",
+																X"02" when X"1",
+																X"04" when X"2",
+																X"08" when X"3",
+																X"10" when X"4",
+																X"20" when X"5",
+																X"40" when X"6",
+																X"80" when X"7",
+																X"00" when others;
 	
+	-- channel select to store configuration
+	DMA_Channel_Select								<= conv_integer(SNES_ADDR(7 downto 4));
+
 	-- capture DMA configuration from SNES bus
 	Process( MCLK )
 	Begin
 		if rising_edge( MCLK ) then
 			if( FSM_Sniff_DMA_Config = '1' AND SNES_WR = '0' ) then
 				-- capture source address low byte
-				if( SNES_ADDR = DMA_Target_Register & X"2" ) then
-					DMA_Src_Addr(DMA_Channel_Select)(7 downto 0)	<= SNES_DATA_IN;
-				end if;
-				
-				if( SNES_ADDR = DMA_Target_Register & X"3" ) then
-					DMA_Src_Addr(DMA_Channel_Select)(15 downto 8)<= SNES_DATA_IN;
-				end if;
-				
-				if( SNES_ADDR = DMA_Target_Register & X"4" ) then	
-					DMA_Src_Addr(DMA_Channel_Select)(23 downto 16)<= SNES_DATA_IN;
-				end if;
-				
-				if( SNES_ADDR = DMA_Target_Register & X"5" ) then
-					DMA_Size(DMA_Channel_Select)(7 downto 0)		<= SNES_DATA_IN;
-				end if;
-				
-				if( SNES_ADDR = DMA_Target_Register & X"6" ) then	
-					DMA_Size(DMA_Channel_Select)(15 downto 8)		<= SNES_DATA_IN;
-				end if;
-				
-				if( SNES_ADDR = X"00420B" ) then
-					if( (SNES_DATA_IN AND DMA_Channel_Select_Mask) /= X"00" ) then
-						DMA_Triggered										<= '1';
-					else
-						DMA_Triggered										<= '0';
+				if( SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 8) = X"43" AND (DMA_Target_Register AND DMA_Channel_Select_Mask) /= X"00" ) then
+					if( SNES_ADDR(3 downto 0) = X"2" ) then
+						DMA_Src_Addr(DMA_Channel_Select)(7 downto 0)	<= SNES_DATA_IN;
 					end if;
+					
+					if( SNES_ADDR(3 downto 0) = X"3" ) then
+						DMA_Src_Addr(DMA_Channel_Select)(15 downto 8)<= SNES_DATA_IN;
+					end if;
+					
+					if( SNES_ADDR(3 downto 0) = X"4" ) then	
+						DMA_Src_Addr(DMA_Channel_Select)(23 downto 16)<= SNES_DATA_IN;
+					end if;
+					
+					if( SNES_ADDR(3 downto 0) = X"5" ) then
+						DMA_Size(DMA_Channel_Select)(7 downto 0)		<= SNES_DATA_IN;
+					end if;
+					
+					if( SNES_ADDR(3 downto 0) = X"6" ) then	
+						DMA_Size(DMA_Channel_Select)(15 downto 8)		<= SNES_DATA_IN;
+					end if;
+				-- get DMA trigger
+				elsif( SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 0) = X"420B" AND (SNES_DATA_IN AND DMA_Channel_Select_Mask) /= X"00" ) then
+					DMA_Triggered												<= '1';
+				else
+					DMA_Triggered												<= '0';
 				end if;
 			else
-				DMA_Triggered												<= '0';
+				DMA_Triggered													<= '0';
 			end if;
 		end if;
 	End Process;
@@ -379,7 +395,7 @@ begin
 						
 					-- wait until DMA starts; we know it starts when source address appears on address bus
 					when WAIT_DMA_START_TRANSFER =>
-						if( DMA_Src_Addr(DMA_Channel_Select) = SNES_ADDR ) then
+						if( DMA_Src_Addr(DMA_Channel_Transfer) = SNES_ADDR ) then
 							estado						<= WAIT_TRANSFER_COMPLETE;
 						end if;
 						
@@ -426,7 +442,7 @@ begin
 		if rising_edge(MCLK) then	
 			-- update source address
 			if( FSM_Start_Decompression = '1' ) then
-				Curr_Src_Addr							<= DMA_Src_Addr(DMA_Channel_Select);
+				Curr_Src_Addr							<= DMA_Src_Addr(DMA_Channel_Transfer);
 				ROM_Access_Cnt							<= 0;
 			-- after writting to $4801, SNES CPU can fetch new instructions (STA.w $420B and others), so
 			-- ROM access must be time multiplexed; when decompressing from S-DD1, ROM is fully time-
@@ -494,11 +510,11 @@ begin
 
 			-- update transfer size
 			if( FSM_Start_Decompression = '1' ) then
-				Curr_Size								<= conv_integer(DMA_Size(DMA_Channel_Select));
+				Curr_Size								<= conv_integer(DMA_Size(DMA_Channel_Transfer));
 				DMA_Data_tready						<= '0';
 			-- when source address appears on SNES_ADDR bus, data must be read from core's output FIFO
 			elsif( FSM_DMA_Transferring = '1' ) then
-				if( DMA_Src_Addr(DMA_Channel_Select) = SNES_ADDR ) then
+				if( DMA_Src_Addr(DMA_Channel_Transfer) = SNES_ADDR ) then
 					-- each falling edge in SNES_RD, a data is output from FIFO
 					if( DMA_Data_tready = '1' AND DMA_Data_tvalid = '1' ) then
 						DMA_Data_tready				<= '0';

@@ -424,16 +424,30 @@ wire [15:0] dsp_feat;
 //);
 
 
-wire sdd1_enable = 1'b0;
+//wire sdd1_enable = ?1'b1;
+reg sdd1_enable;
+always @(posedge CLK2)
+begin
+	if(MAPPER == 3'b010)
+		sdd1_enable	<= 1'b1;
+	else
+		sdd1_enable	<= 1'b0;
+end 
 
+wire SDD1_ROM_CE;
+wire SDD1_ROM_OE;
+wire SDD1_RAM_CE;
+wire SDD1_RAM_OE;
+wire SDD1_RAM_WE;
 wire [7:0] SDD1_SNES_DATA_OUT;
 // when reading from PSRAM, 16-bit width read is performed from S-DD1 core
-wire [15:0] SDD1_ROM_DATA = {ROM_DATA[7:0], ROM_DATA[15:8]};
+wire [15:0] SDD1_ROM_DATA = (sdd1_enable & ~SDD1_ROM_CE)?{ROM_DATA[7:0], ROM_DATA[15:8]}:16'h0000;
 wire [21:0] SDD1_ROM_ADDR;
 wire [23:0] SDD1_SNES_ADDR;
-assign SDD1_SNES_ADDR = SNES_ADDR;
 wire [7:0] SDD1_SNES_DATA_IN;
-assign SDD1_SNES_DATA_IN = SNES_DATA_IN;
+
+assign SDD1_SNES_ADDR = SNES_ADDR;
+assign SDD1_SNES_DATA_IN = BUS_DATA;
 assign SDD1_SNES_RD = SNES_READ;
 assign SDD1_SNES_WR = SNES_WRITE;
 // when writing to PSRAM, back-up SRAM is at address $E0:0000 and up
@@ -467,16 +481,19 @@ SNES_Scope_Ctrl ICON (
 SNES_Scope_Data ILA  (
     .CONTROL(CONTROL0), // INOUT BUS [35:0]
     .CLK(CLK_SCOPE), // IN
-	 .TRIG0(SNES_CPU_CLK),
+	 .TRIG0(sdd1_enable),
 	 .TRIG1(SNES_READ),
 	 .TRIG2(SDD1_SNES_ADDR),
     .TRIG3(SDD1_SNES_DATA_IN),
     .TRIG4(SDD1_SNES_DATA_OUT),
-	 .TRIG5(SDD1_ROM_OE),
+	 .TRIG5(SDD1_ROM_CE),
 	 .TRIG6(SDD1_ROM_ADDR),
 	 .TRIG7(SDD1_ROM_DATA));
+//	 .TRIG5(ROM_BHE),
+//	 .TRIG6(ROM_ADDR[21:0]),
+//	 .TRIG7(ROM_DATA));
 
-
+ 
 
 reg [7:0] MCU_DINr;
 wire [7:0] MCU_DOUT;
@@ -853,6 +870,7 @@ assign ROM_DATA[7:0] = ROM_ADDR0 ?
 								(SD_DMA_TO_ROM ? (!MCU_WRITE_1 ? MCU_DOUT : 8'bZ)
 									// if S-DD1 is present, only writes to PSRAM if game is storing in backup SRAM
 									: (sdd1_enable & ~SDD1_RAM_CE & ~SDD1_RAM_WE) ? SNES_DATA
+									: (sdd1_enable & ~SDD1_ROM_CE) ? 8'bZ
 									// if writing to ROM, backup RAM or BS-X RAM (all stored in PSRAM)
 									: (ROM_HIT & ~SNES_WRITE) ? SNES_DATA 
 									: MCU_WR_HIT ? MCU_DOUT : 8'bZ )
@@ -864,6 +882,7 @@ assign ROM_DATA[15:8] = ROM_ADDR0 ? 8'bZ
 									: (SD_DMA_TO_ROM ? (!MCU_WRITE_1 ? MCU_DOUT : 8'bZ)
 									// if S-DD1 is present, only writes to PSRAM if game is storing in backup SRAM
 									: (sdd1_enable & ~SDD1_RAM_CE & ~SDD1_RAM_WE) ? SNES_DATA
+									: (sdd1_enable & ~SDD1_ROM_CE) ? 8'bZ
 									// if writing to ROM, backup RAM or BS-X RAM (all stored in PSRAM)
 									: (ROM_HIT & ~SNES_WRITE) ? SNES_DATA
 									: MCU_WR_HIT ? MCU_DOUT
