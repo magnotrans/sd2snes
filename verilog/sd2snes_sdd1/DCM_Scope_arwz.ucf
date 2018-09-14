@@ -2,7 +2,7 @@
 # --- UCF Template Only ---
 # Cut and paste these attributes into the project's UCF file, if desired
 INST DCM_INST CLK_FEEDBACK = 1X;
-INST DCM_INST CLKDV_DIVIDE = 4.5;
+INST DCM_INST CLKDV_DIVIDE = 4.0;
 INST DCM_INST CLKFX_DIVIDE = 1;
 INST DCM_INST CLKFX_MULTIPLY = 4;
 INST DCM_INST CLKIN_DIVIDE_BY_2 = FALSE;

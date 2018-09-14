@@ -172,16 +172,22 @@ reg SNES_reset_strobe = 0;
 
 reg free_strobe = 0;
 
+
 wire SNES_PARD_start = ((SNES_PARDr[6:1] | SNES_PARDr[7:2]) == 6'b111110);
 wire SNES_PAWR_start = ((SNES_PAWRr[6:1] | SNES_PAWRr[7:2]) == 6'b111000); /* 000 necessary for SNES_DATA capture */
 wire SNES_PAWR_end = ((SNES_PAWRr[6:1] & SNES_PAWRr[7:2]) == 6'b000001);
 wire SNES_RD_start = ((SNES_READr[6:1] | SNES_READr[7:2]) == 6'b111100);
-// equivalent to (SNES_READr[3:2] == 2b'01)
-wire SNES_RD_end = ((SNES_READr[6:1] & SNES_READr[7:2]) == 6'b000001);
-// equivalent to (SNES_WRITEr[3:2] == 2b'01)
-wire SNES_WR_end = ((SNES_WRITEr[6:1] & SNES_WRITEr[7:2]) == 6'b000001);
+
+// MAGNO wire SNES_RD_end = ((SNES_READr[6:1] & SNES_READr[7:2]) == 6'b000001);
+wire SNES_RD_end = (SNES_READr[3:2] == 2'b01);
+// MAGNO wire SNES_WR_end = ((SNES_WRITEr[6:1] & SNES_WRITEr[7:2]) == 6'b000001);
+wire SNES_WR_end = (SNES_WRITEr[3:2] == 2'b01);
+wire SNES_WR_strobe = (SNES_WRITEr[2:1] == 2'b01);
+
 wire SNES_cycle_start = ((SNES_CPU_CLKr[7:2] & SNES_CPU_CLKr[6:1]) == 6'b000011);
 wire SNES_cycle_end = ((SNES_CPU_CLKr[7:2] | SNES_CPU_CLKr[6:1]) == 6'b111000);
+
+/* MAGNO
 // active low write signal from SNES delayed 2 cycles (96MHz clock)
 wire SNES_WRITE = SNES_WRITEr[2] & SNES_WRITEr[1];
 // active low read signal from SNES delayed 2 cycles (96MHz clock)
@@ -189,15 +195,30 @@ wire SNES_READ = SNES_READr[2] & SNES_READr[1];
 wire SNES_CPU_CLK = SNES_CPU_CLKr[2] & SNES_CPU_CLKr[1];
 wire SNES_PARD = SNES_PARDr[2] & SNES_PARDr[1];
 wire SNES_PAWR = SNES_PAWRr[2] & SNES_PAWRr[1];
-
 wire SNES_ROMSEL = (SNES_ROMSELr[5] & SNES_ROMSELr[4]);
 // snes address bus delayed by 6 cycles, 4 respect SNES_READ and SNES_WRITE
 wire [23:0] SNES_ADDR = (SNES_ADDRr[6] & SNES_ADDRr[5]);
 wire [7:0] SNES_PA = (SNES_PAr[6] & SNES_PAr[5]);
 wire [7:0] SNES_DATA_IN = (SNES_DATAr[3] & SNES_DATAr[2]);
+*/
+
+// active low write signal from SNES delayed 2 cycles (96MHz clock)
+wire SNES_WRITE = SNES_WRITEr[2];
+// active low read signal from SNES delayed 2 cycles (96MHz clock)
+wire SNES_READ = SNES_READr[2];
+wire SNES_CPU_CLK = SNES_CPU_CLKr;
+wire SNES_PARD = SNES_PARDr[2];
+wire SNES_PAWR = SNES_PAWRr[2];
+wire SNES_ROMSEL = SNES_ROMSELr[5];
+// snes address bus delayed by 6 cycles, 4 respect SNES_READ and SNES_WRITE
+wire [23:0] SNES_ADDR = SNES_ADDRr[6];
+wire [7:0] SNES_PA = SNES_PAr[6];
+wire [7:0] SNES_DATA_IN = SNES_DATAr[3];
 
 reg [7:0] BUS_DATA;
 
+// if SNES CPU is reading, register data bus
+// if SNES CPU is writing, register data bus delayed 4 cycles
 always @(posedge CLK2) begin
   if(~SNES_READ) BUS_DATA <= SNES_DATA;
   else if(~SNES_WRITE) BUS_DATA <= SNES_DATA_IN;
@@ -424,14 +445,26 @@ wire [15:0] dsp_feat;
 //);
 
 
-//wire sdd1_enable = ?1'b1;
+
 reg sdd1_enable;
+reg sdd1_reg_enable;
+
+// '1' when accesing any S-DD1 register $480X or any DMA register
 always @(posedge CLK2)
 begin
-	if(MAPPER == 3'b010)
-		sdd1_enable	<= 1'b1;
+	if( MAPPER == 3'b100 )
+		begin
+			sdd1_enable				<= 1'b1;
+			if( SNES_ADDR[22] == 1'b0 & (SNES_ADDR[15:4] == 12'h480 | SNES_ADDR[15:0] == 16'h420B | SNES_ADDR[15:8] == 8'h43) )
+				sdd1_reg_enable	<= 1'b1;
+			else
+				sdd1_reg_enable	<= 1'b0;
+		end
 	else
-		sdd1_enable	<= 1'b0;
+		begin
+			sdd1_enable				<= 1'b0;
+			sdd1_reg_enable		<= 1'b0;
+		end
 end 
 
 wire SDD1_ROM_CE;
@@ -441,7 +474,8 @@ wire SDD1_RAM_OE;
 wire SDD1_RAM_WE;
 wire [7:0] SDD1_SNES_DATA_OUT;
 // when reading from PSRAM, 16-bit width read is performed from S-DD1 core
-wire [15:0] SDD1_ROM_DATA = (sdd1_enable & ~SDD1_ROM_CE)?{ROM_DATA[7:0], ROM_DATA[15:8]}:16'h0000;
+//wire [15:0] SDD1_ROM_DATA = (sdd1_enable & ~SDD1_ROM_CE)?{ROM_DATA[7:0], ROM_DATA[15:8]}:16'h0000;
+wire [15:0] SDD1_ROM_DATA = {ROM_DATA[7:0], ROM_DATA[15:8]};
 wire [21:0] SDD1_ROM_ADDR;
 wire [23:0] SDD1_SNES_ADDR;
 wire [7:0] SDD1_SNES_DATA_IN;
@@ -451,7 +485,7 @@ assign SDD1_SNES_DATA_IN = BUS_DATA;
 assign SDD1_SNES_RD = SNES_READ;
 assign SDD1_SNES_WR = SNES_WRITE;
 // when writing to PSRAM, back-up SRAM is at address $E0:0000 and up
-wire [23:0] SDD1_RAM_ADDR = 24'hE00000 + {7'b0000000, SNES_ADDR[19:16], SNES_ADDR[12:0]};
+wire [23:0] SDD1_RAM_ADDR = MAPPED_SNES_ADDR;
 
 // implementation of S-DD1 chip
 SDD1 sdd1_snes(
@@ -468,10 +502,10 @@ SDD1 sdd1_snes(
 	.SNES_DATA_IN(SDD1_SNES_DATA_IN),
 	.SNES_DATA_OUT(SDD1_SNES_DATA_OUT),
 	.SNES_RD(SDD1_SNES_RD),
-	.SNES_WR(SDD1_SNES_WR) );	
+	.SNES_WR(SDD1_SNES_WR),
+	.SNES_WR_End(SNES_WR_strobe) );	
 	
-
-
+/*
 wire [35:0] CONTROL0;
 
 SNES_Scope_Ctrl ICON (
@@ -480,19 +514,23 @@ SNES_Scope_Ctrl ICON (
 
 SNES_Scope_Data ILA  (
     .CONTROL(CONTROL0), // INOUT BUS [35:0]
-    .CLK(CLK_SCOPE), // IN
-	 .TRIG0(sdd1_enable),
+    .CLK(CLK2),
+	 //.CLK(CLK_SCOPE),
+	 .TRIG0(sdd1_reg_enable),
 	 .TRIG1(SNES_READ),
 	 .TRIG2(SDD1_SNES_ADDR),
     .TRIG3(SDD1_SNES_DATA_IN),
     .TRIG4(SDD1_SNES_DATA_OUT),
-	 .TRIG5(SDD1_ROM_CE),
-	 .TRIG6(SDD1_ROM_ADDR),
-	 .TRIG7(SDD1_ROM_DATA));
-//	 .TRIG5(ROM_BHE),
-//	 .TRIG6(ROM_ADDR[21:0]),
-//	 .TRIG7(ROM_DATA));
-
+	 //.TRIG5(SDD1_ROM_CE),
+	 //.TRIG6(SDD1_ROM_ADDR),
+	 //.TRIG7(SDD1_ROM_DATA),
+	 .TRIG5(SDD1_RAM_CE),
+	 .TRIG6(ROM_ADDR[21:0]),
+	 .TRIG7(ROM_DATA),
+	 .TRIG8(SNES_WRITE),
+	 //.TRIG9({SNES_WR_strobe, DBG_SDD1[2], DBG_SDD1[0], DBG_SDD1_tready, DBG_SDD1_tvalid, DBG_SDD1_tdata, DBG_SDD1_tuser}) );
+	 .TRIG9({SNES_DATA, ROM_WE, ROM_ADDR[22], SDD1_RAM_OE, SDD1_RAM_WE, ROM_BHE, ROM_BLE, SNES_DATABUS_DIR, SNES_DATABUS_OE}) );
+*/
  
 
 reg [7:0] MCU_DINr;
@@ -722,7 +760,8 @@ assign SNES_DATA = (r213f_enable & ~SNES_PARD & ~r213f_forceread) ? r213fr
 							:(cheat_hit & ~feat_cmd_unlock) ? cheat_data_out
 							:((snescmd_unlock | feat_cmd_unlock) & snescmd_enable) ? snescmd_dout
 							// when S-DD1 is present, send data from ROM to SNES whenever CPU is reading
-							:(sdd1_enable & ~SNES_READ) ? SDD1_SNES_DATA_OUT 
+							//:(sdd1_enable & ~SNES_READ & SDD1_RAM_CE) ? SDD1_SNES_DATA_OUT 
+							:(sdd1_enable & SDD1_RAM_CE) ? SDD1_SNES_DATA_OUT 
 							:(ROM_ADDR0 ? ROM_DATA[7:0] : ROM_DATA[15:8])) 
 						 : 8'bZ;
 
@@ -742,7 +781,7 @@ wire MCU_HIT = MCU_WR_HIT | MCU_RD_HIT;
 // final address to PSRAM where ROM and SRAM is stored
 assign ROM_ADDR  = (SD_DMA_TO_ROM) ? MCU_ADDR[23:1] 
 						: MCU_HIT ? ROM_ADDRr[23:1] 
-						: sdd1_enable?(~SDD1_RAM_CE?SDD1_RAM_ADDR:{1'b0, SDD1_ROM_ADDR}) 
+						: sdd1_enable?(~SDD1_RAM_CE?SDD1_RAM_ADDR[23:1]:{1'b0, SDD1_ROM_ADDR}) 
 						: MAPPED_SNES_ADDR[23:1];
 
 // lower address bit to select [7:0] (ROM_ADDR0 = '1') or [15:8] (ROM_ADDR0 = '0') byte in the 16-bit word read from PSRAM
@@ -868,8 +907,9 @@ always @(posedge CLK2) MCU_WRITE_1<= MCU_WRITE;
 assign ROM_DATA[7:0] = ROM_ADDR0 ? 
 								// if ROM_ADDR[0] = '1'
 								(SD_DMA_TO_ROM ? (!MCU_WRITE_1 ? MCU_DOUT : 8'bZ)
-									// if S-DD1 is present, only writes to PSRAM if game is storing in backup SRAM
-									: (sdd1_enable & ~SDD1_RAM_CE & ~SDD1_RAM_WE) ? SNES_DATA
+									// if S-DD1 is present, only writes to PSRAM if game is storing in backup SRAM;
+									// if reading from PSRAM, the bus is tri-state
+									: (sdd1_enable & ~SDD1_RAM_CE) ? ((~SDD1_RAM_WE) ? SNES_DATA : 8'bZ )
 									: (sdd1_enable & ~SDD1_ROM_CE) ? 8'bZ
 									// if writing to ROM, backup RAM or BS-X RAM (all stored in PSRAM)
 									: (ROM_HIT & ~SNES_WRITE) ? SNES_DATA 
@@ -881,7 +921,8 @@ assign ROM_DATA[15:8] = ROM_ADDR0 ? 8'bZ
 									// if ROM_ADDR[0] = '0'
 									: (SD_DMA_TO_ROM ? (!MCU_WRITE_1 ? MCU_DOUT : 8'bZ)
 									// if S-DD1 is present, only writes to PSRAM if game is storing in backup SRAM
-									: (sdd1_enable & ~SDD1_RAM_CE & ~SDD1_RAM_WE) ? SNES_DATA
+									// if reading from PSRAM, the bus is tri-state
+									: (sdd1_enable & ~SDD1_RAM_CE) ? ((~SDD1_RAM_WE) ? SNES_DATA : 8'bZ )
 									: (sdd1_enable & ~SDD1_ROM_CE) ? 8'bZ
 									// if writing to ROM, backup RAM or BS-X RAM (all stored in PSRAM)
 									: (ROM_HIT & ~SNES_WRITE) ? SNES_DATA
@@ -906,13 +947,13 @@ assign ROM_BHE = (sdd1_enable & ~SDD1_ROM_CE)?1'b0:ROM_ADDR0;
 // '0' when accessing low byte
 assign ROM_BLE = (sdd1_enable & ~SDD1_ROM_CE)?1'b0:!ROM_ADDR0;
 
-// active low signal to enable level converters' output
+// active low signal to enable level converters' output; it enables output in both sides of the chip
 assign SNES_DATABUS_OE = msu_enable ? 1'b0 :
                          snescmd_enable ? (~(snescmd_unlock | feat_cmd_unlock) | (SNES_READ & SNES_WRITE)) :
                          (r213f_enable & ~SNES_PARD) ? 1'b0 :
                          (r2100_enable & ~SNES_PAWR) ? 1'b0 :
                          snoop_4200_enable ? SNES_WRITE :
-                         ((IS_ROM & SNES_ROMSEL) | (!IS_ROM & !IS_SAVERAM) | (SNES_READ & SNES_WRITE)
+                         ((IS_ROM & SNES_ROMSEL) | (!IS_ROM & !IS_SAVERAM & !IS_WRITABLE & !sdd1_reg_enable) | (SNES_READ & SNES_WRITE)
                          );
 
 /* data bus direction: 0 = SNES -> FPGA; 1 = FPGA -> SNES
@@ -920,8 +961,7 @@ assign SNES_DATABUS_OE = msu_enable ? 1'b0 :
  *  a) the SNES wants to read
  *  b) we want to force a value on the bus
  */
-assign SNES_DATABUS_DIR = (~SNES_READ | (~SNES_PARD & (r213f_enable)))
-                           ? (1'b1 ^ (r213f_forceread & r213f_enable & ~SNES_PARD))
+assign SNES_DATABUS_DIR = (~SNES_READ | (~SNES_PARD & (r213f_enable))) ? (1'b1 ^ (r213f_forceread & r213f_enable & ~SNES_PARD))
                            : ((~SNES_PAWR & r2100_enable) ? r2100_forcewrite
                            : 1'b0);
 

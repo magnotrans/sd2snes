@@ -51,7 +51,11 @@ entity Input_Manager is
 			Decoded_Bit_tuser					: in 	STD_LOGIC_VECTOR(7 downto 0);
 			Decoded_Bit_tvalid				: out STD_LOGIC;
 			Decoded_Bit_tdata					: out STD_LOGIC;
-			Decoded_Bit_tlast					: out STD_LOGIC);
+			Decoded_Bit_tlast					: out STD_LOGIC;
+			-- DEBUG
+			DBG_tready							: out	STD_LOGIC;
+			DBG_tvalid							: out	STD_LOGIC;
+			DBG_Data								: out STD_LOGIC_VECTOR(7 downto 0));
 end Input_Manager;
 
 
@@ -199,6 +203,11 @@ begin
 	    			dout									=> FIFO_Data,
 	    			prog_full							=> FIFO_Full );
 
+	-- DEBUG
+	DBG_tready							<= FIFO_rd;
+	DBG_tvalid							<= FIFO_valid;
+	DBG_Data								<= FIFO_Data;
+				
    -- convert input bytes to bitstream
 	Bitstream : Serializer
    	Port map(clk									=> clk,

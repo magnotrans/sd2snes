@@ -47,15 +47,18 @@ entity SDD1 is
 			SNES_DATA_IN						: in 	STD_LOGIC_VECTOR(7 downto 0);
 			SNES_DATA_OUT						: out STD_LOGIC_VECTOR(7 downto 0);
 			SNES_RD								: in 	STD_LOGIC;
-			SNES_WR								: in 	STD_LOGIC );
+			SNES_WR								: in 	STD_LOGIC;
+			SNES_WR_End							: in 	STD_LOGIC );
 end SDD1;
 
 
 architecture Behavioral of SDD1 is
 	-- number of master clock cycles of ROM time access -> 3 cycles = 129 ns
 	--constant ROM_ACCESS_CYCLES					: integer := 3;
-	-- number of SD2SNES clock cycles of ROM time access -> 12 cycles = 125 ns
-	constant ROM_ACCESS_CYCLES					: integer := 12;
+	-- number of SD2SNES clock cycles of ROM time access -> 7 cycles = 73 ns for -70ns PSRAM
+	--constant ROM_ACCESS_CYCLES					: integer := 7;
+	-- number of SD2SNES clock cycles of ROM time access -> 9 cycles = 93.75 ns for -85ns PSRAM
+	constant ROM_ACCESS_CYCLES					: integer := 9;
 
 	COMPONENT SDD1_Core is
 		Port(	clk 									: in 	STD_LOGIC;
@@ -242,7 +245,7 @@ begin
 				DMA_Channel_Transfer					<= 0;
 			else
 				-- SNES bank $00 -> register $480X can be accesed from any LoROM bank
-				if( SNES_WR = '0' AND SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 4) = X"480" ) then
+				if( SNES_WR_End = '1' AND SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 4) = X"480" ) then
 					case SNES_ADDR(3 downto 0) is
 						-- register $4800 -> select the DMA channels to sniff
 						when X"0" =>
@@ -308,6 +311,7 @@ begin
 			end if;
 		end if;
 	End Process;
+
 	
 	-- DMA channel mask decoded from register address $43X-
 	with SNES_ADDR(7 downto 4) select
@@ -324,13 +328,14 @@ begin
 	-- channel select to store configuration
 	DMA_Channel_Select								<= conv_integer(SNES_ADDR(7 downto 4));
 
+	
 	-- capture DMA configuration from SNES bus
 	Process( MCLK )
 	Begin
 		if rising_edge( MCLK ) then
-			if( FSM_Sniff_DMA_Config = '1' AND SNES_WR = '0' ) then
+			if( FSM_Sniff_DMA_Config = '1' AND SNES_WR_End = '1' ) then
 				-- capture source address low byte
-				if( SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 8) = X"43" AND (DMA_Target_Register AND DMA_Channel_Select_Mask) /= X"00" ) then
+				if( SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 8) = X"43" AND ((DMA_Target_Register AND DMA_Channel_Select_Mask) /= X"00") ) then
 					if( SNES_ADDR(3 downto 0) = X"2" ) then
 						DMA_Src_Addr(DMA_Channel_Select)(7 downto 0)	<= SNES_DATA_IN;
 					end if;
@@ -351,7 +356,7 @@ begin
 						DMA_Size(DMA_Channel_Select)(15 downto 8)		<= SNES_DATA_IN;
 					end if;
 				-- get DMA trigger
-				elsif( SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 0) = X"420B" AND (SNES_DATA_IN AND DMA_Channel_Select_Mask) /= X"00" ) then
+				elsif( SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 0) = X"420B" AND ((SNES_DATA_IN AND DMA_Channel_Select_Mask) /= X"00") ) then
 					DMA_Triggered												<= '1';
 				else
 					DMA_Triggered												<= '0';
@@ -412,7 +417,7 @@ begin
 			end if;
 		end if;
 	End Process;
-	
+
 	-- get configuration fom SNES data bus
 	with estado select
 		FSM_Sniff_DMA_Config							<= '1'	when GET_DMA_CONFIG,
@@ -495,11 +500,14 @@ begin
 					DMA_Data_tready					=> DMA_Data_tready,
 					DMA_Data_tvalid					=> DMA_Data_tvalid,
 					DMA_Data_tdata						=> DMA_Data_tdata );
-		
+
+	
 	-- tri-State Buffer control
+--	SNES_DATA_OUT										<= DMA_Data_out 	when (FSM_DMA_Transferring = '1') else 
+--																ROM_Data_Byte	when SNES_RD = '0' else																 
+--																(others=>'0');
 	SNES_DATA_OUT										<= DMA_Data_out 	when (FSM_DMA_Transferring = '1') else 
-																ROM_Data_Byte	when SNES_RD = '0' else																 
-																(others=>'0');
+																ROM_Data_Byte;
 					
 	-- send data to SNES while decompressing using DMA
 	Process( MCLK )

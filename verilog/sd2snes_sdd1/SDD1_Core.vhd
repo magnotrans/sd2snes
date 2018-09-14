@@ -147,8 +147,10 @@ begin
 					Decoded_Bit_tuser				=> Decoded_Bit_tuser,
 					Decoded_Bit_tvalid			=> Decoded_Bit_tvalid,
 					Decoded_Bit_tdata				=> Decoded_Bit_tdata,
-					Decoded_Bit_tlast				=> Decoded_Bit_tlast );
+					Decoded_Bit_tlast				=> Decoded_Bit_tlast  );
 
+				
+				
 	-- get Golomb data and context to decode pixel
 	PE : Probability_Estimator
 		Port map(clk 								=> clk,

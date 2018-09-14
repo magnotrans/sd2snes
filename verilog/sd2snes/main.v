@@ -303,33 +303,33 @@ dac snes_dac(
   .dac_address_ext(dac_ptr_addr)
 );
 
-//srtc snes_srtc (
-//  .clkin(CLK2),
-//  .addr_in(SNES_ADDR[0]),
-//  .data_in(SRTC_SNES_DATA_IN),
-//  .data_out(SRTC_SNES_DATA_OUT),
-//  .rtc_data_in(rtc_data),
-//  .enable(srtc_enable),
-//  .rtc_data_out(srtc_rtc_data_out),
-//  .reg_oe_falling(SNES_RD_start),
-//  .reg_oe_rising(SNES_RD_end),
-//  .reg_we_rising(SNES_WR_end),
-//  .rtc_we(srtc_rtc_we),
-//  .reset(srtc_reset),
-//  .srtc_state(DBG_srtc_state),
-//  .srtc_reg_we_rising(DBG_srtc_we_rising),
-//  .srtc_rtc_ptr(DBG_srtc_ptr),
-//  .srtc_we_sreg(DBG_srtc_we_sreg)
-//);
-//
-//rtc snes_rtc (
-//  .clkin(CLKIN),
-//  .rtc_data(rtc_data),
-//  .rtc_data_in(rtc_data_in),
-//  .pgm_we(rtc_pgm_we),
-//  .rtc_data_in1(srtc_rtc_data_out),
-//  .we1(srtc_rtc_we)
-//);
+srtc snes_srtc (
+  .clkin(CLK2),
+  .addr_in(SNES_ADDR[0]),
+  .data_in(SRTC_SNES_DATA_IN),
+  .data_out(SRTC_SNES_DATA_OUT),
+  .rtc_data_in(rtc_data),
+  .enable(srtc_enable),
+  .rtc_data_out(srtc_rtc_data_out),
+  .reg_oe_falling(SNES_RD_start),
+  .reg_oe_rising(SNES_RD_end),
+  .reg_we_rising(SNES_WR_end),
+  .rtc_we(srtc_rtc_we),
+  .reset(srtc_reset),
+  .srtc_state(DBG_srtc_state),
+  .srtc_reg_we_rising(DBG_srtc_we_rising),
+  .srtc_rtc_ptr(DBG_srtc_ptr),
+  .srtc_we_sreg(DBG_srtc_we_sreg)
+);
+
+rtc snes_rtc (
+  .clkin(CLKIN_RTC),
+  .rtc_data(rtc_data),
+  .rtc_data_in(rtc_data_in),
+  .pgm_we(rtc_pgm_we),
+  .rtc_data_in1(srtc_rtc_data_out),
+  .we1(srtc_rtc_we)
+);
 
 msu snes_msu (
   .clkin(CLK2),
@@ -360,27 +360,27 @@ msu snes_msu (
   .DBG_msu_address_ext_write_rising(DBG_msu_address_ext_write_rising)
 );
 
-//bsx snes_bsx(
-//  .clkin(CLK2),
-//  .use_bsx(use_bsx),
-//  .pgm_we(bsx_regs_reset_we),
-//  .snes_addr(SNES_ADDR),
-//  .reg_data_in(BSX_SNES_DATA_IN),
-//  .reg_data_out(BSX_SNES_DATA_OUT),
-//  .reg_oe_falling(SNES_RD_start),
-//  .reg_oe_rising(SNES_RD_end),
-//  .reg_we_rising(SNES_WR_end),
-//  .regs_out(bsx_regs),
-//  .reg_reset_bits(bsx_regs_reset_bits),
-//  .reg_set_bits(bsx_regs_set_bits),
-//  .data_ovr(bsx_data_ovr),
-//  .flash_writable(IS_FLASHWR),
-//  .rtc_data(rtc_data[59:0]),
-//  .bs_page_out(bs_page), // support only page 0000-03ff
-//  .bs_page_enable(bs_page_enable),
-//  .bs_page_offset(bs_page_offset)
-//
-//);
+bsx snes_bsx(
+  .clkin(CLK2),
+  .use_bsx(use_bsx),
+  .pgm_we(bsx_regs_reset_we),
+  .snes_addr(SNES_ADDR),
+  .reg_data_in(BSX_SNES_DATA_IN),
+  .reg_data_out(BSX_SNES_DATA_OUT),
+  .reg_oe_falling(SNES_RD_start),
+  .reg_oe_rising(SNES_RD_end),
+  .reg_we_rising(SNES_WR_end),
+  .regs_out(bsx_regs),
+  .reg_reset_bits(bsx_regs_reset_bits),
+  .reg_set_bits(bsx_regs_set_bits),
+  .data_ovr(bsx_data_ovr),
+  .flash_writable(IS_FLASHWR),
+  .rtc_data(rtc_data[59:0]),
+  .bs_page_out(bs_page), // support only page 0000-03ff
+  .bs_page_enable(bs_page_enable),
+  .bs_page_offset(bs_page_offset)
+
+);
 
 spi snes_spi(
   .clk(CLK2),
@@ -401,47 +401,47 @@ spi snes_spi(
 
 wire [15:0] dsp_feat;
 
-//upd77c25 snes_dspx (
-//  .DI(DSPX_SNES_DATA_IN),
-//  .DO(DSPX_SNES_DATA_OUT),
-//  .A0(DSPX_A0),
-//  .enable(dspx_enable),
-//  .reg_oe_falling(SNES_RD_start),
-//  .reg_oe_rising(SNES_RD_end),
-//  .reg_we_rising(SNES_WR_end),
-//  .RST(~dspx_reset),
-//  .CLK(CLK2),
-//  .PGM_WR(dspx_pgm_we),
-//  .PGM_DI(dspx_pgm_data),
-//  .PGM_WR_ADDR(dspx_pgm_addr),
-//  .DAT_WR(dspx_dat_we),
-//  .DAT_DI(dspx_dat_data),
-//  .DAT_WR_ADDR(dspx_dat_addr),
-//  .DP_enable(dspx_dp_enable),
-//  .DP_ADDR(SNES_ADDR[10:0]),
-//  .dsp_feat(dsp_feat)
-//);
-
-
-
-
-wire [35:0] CONTROL0;
-
-SNES_Scope_Ctrl ICON (
-    .CONTROL0(CONTROL0) // INOUT BUS [35:0]
+upd77c25 snes_dspx (
+  .DI(DSPX_SNES_DATA_IN),
+  .DO(DSPX_SNES_DATA_OUT),
+  .A0(DSPX_A0),
+  .enable(dspx_enable),
+  .reg_oe_falling(SNES_RD_start),
+  .reg_oe_rising(SNES_RD_end),
+  .reg_we_rising(SNES_WR_end),
+  .RST(~dspx_reset),
+  .CLK(CLK2),
+  .PGM_WR(dspx_pgm_we),
+  .PGM_DI(dspx_pgm_data),
+  .PGM_WR_ADDR(dspx_pgm_addr),
+  .DAT_WR(dspx_dat_we),
+  .DAT_DI(dspx_dat_data),
+  .DAT_WR_ADDR(dspx_dat_addr),
+  .DP_enable(dspx_dp_enable),
+  .DP_ADDR(SNES_ADDR[10:0]),
+  .dsp_feat(dsp_feat)
 );
 
-SNES_Scope_Data ILA  (
-    .CONTROL(CONTROL0), // INOUT BUS [35:0]
-    .CLK(CLK_SCOPE), // IN
-	 .TRIG0(SNES_CPU_CLK),
-	 .TRIG1(SNES_READ),
-	 .TRIG2(SNES_ADDR),
-    .TRIG3(SNES_DATA_IN),
-    .TRIG4(SNES_DATA),
-	 .TRIG5(SNES_WRITE),
-	 .TRIG6(ROM_ADDR),
-	 .TRIG7(ROM_DATA));
+
+
+//
+//wire [35:0] CONTROL0;
+//
+//SNES_Scope_Ctrl ICON (
+//    .CONTROL0(CONTROL0) // INOUT BUS [35:0]
+//);
+//
+//SNES_Scope_Data ILA  (
+//    .CONTROL(CONTROL0), // INOUT BUS [35:0]
+//    .CLK(CLK_SCOPE), // IN
+//	 .TRIG0(SNES_CPU_CLK),
+//	 .TRIG1(SNES_READ),
+//	 .TRIG2(SNES_ADDR),
+//    .TRIG3(SNES_DATA_IN),
+//    .TRIG4(SNES_DATA),
+//	 .TRIG5(SNES_WRITE),
+//	 .TRIG6(ROM_ADDR),
+//	 .TRIG7(ROM_DATA));
 
 reg [7:0] MCU_DINr;
 wire [7:0] MCU_DOUT;
@@ -542,7 +542,7 @@ DCM_Scope snes_dcm(
   .CLKIN_IN(CLKIN),
   .CLKFX_OUT(CLK2),
   .CLKDV_OUT(CLK_SCOPE),
-  .CLKIN_IBUFG_OUT(),
+  .CLKIN_IBUFG_OUT(CLKIN_RTC),
   .CLK0_OUT(), 
   .LOCKED_OUT(DCM_LOCKED),
   .RST_IN(DCM_RST)
@@ -666,7 +666,11 @@ end
 assign SNES_DATA = (r213f_enable & ~SNES_PARD & ~r213f_forceread) ? r213fr
                    :(r2100_enable & ~SNES_PAWR & r2100_forcewrite) ? r2100r
                    :(~SNES_READ ^ (r213f_forceread & r213f_enable & ~SNES_PARD)) ?
-                                  (msu_enable ? MSU_SNES_DATA_OUT
+                                  (srtc_enable ? SRTC_SNES_DATA_OUT
+                                  :dspx_enable ? DSPX_SNES_DATA_OUT
+                                  :dspx_dp_enable ? DSPX_SNES_DATA_OUT
+                                  :msu_enable ? MSU_SNES_DATA_OUT
+                                  :bsx_data_ovr ? BSX_SNES_DATA_OUT
                                   :(cheat_hit & ~feat_cmd_unlock) ? cheat_data_out
                                   :((snescmd_unlock | feat_cmd_unlock) & snescmd_enable) ? snescmd_dout
                                   :(ROM_ADDR0 ? ROM_DATA[7:0] : ROM_DATA[15:8])
@@ -820,7 +824,7 @@ assign ROM_DATA[15:8] = ROM_ADDR0 ? 8'bZ
 // write enable for PSRAM;
 assign ROM_WE = SD_DMA_TO_ROM
                 ?MCU_WRITE
-                : (ROM_HIT & IS_WRITABLE & SNES_CPU_CLK) ? SNES_WRITE
+                : (ROM_HIT & (IS_WRITABLE | IS_FLASHWR) & SNES_CPU_CLK) ? SNES_WRITE
                 : MCU_WR_HIT ? 1'b0
                 : 1'b1;
 
@@ -834,13 +838,17 @@ assign ROM_BHE = ROM_ADDR0;
 // '1' when accessing low byte
 assign ROM_BLE = !ROM_ADDR0;
 
-assign SNES_DATABUS_OE = msu_enable ? 1'b0 :
+assign SNES_DATABUS_OE = (dspx_enable | dspx_dp_enable) ? 1'b0 :
+                         msu_enable ? 1'b0 :
+                         bsx_data_ovr ? (SNES_READ & SNES_WRITE) :
+                         srtc_enable ? (SNES_READ & SNES_WRITE) :
                          snescmd_enable ? (~(snescmd_unlock | feat_cmd_unlock) | (SNES_READ & SNES_WRITE)) :
+                         bs_page_enable ? (SNES_READ) :
                          (r213f_enable & ~SNES_PARD) ? 1'b0 :
                          (r2100_enable & ~SNES_PAWR) ? 1'b0 :
                          snoop_4200_enable ? SNES_WRITE :
                          ((IS_ROM & SNES_ROMSEL)
-                          |(!IS_ROM & !IS_SAVERAM & !IS_WRITABLE)
+                          |(!IS_ROM & !IS_SAVERAM & !IS_WRITABLE & !IS_FLASHWR)
                           |(SNES_READ & SNES_WRITE)
                           | bsx_tristate
                          );

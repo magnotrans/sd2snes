@@ -7,7 +7,7 @@
 // \   \   \/     Version : 14.7
 //  \   \         Application : xaw2verilog
 //  /   /         Filename : DCM_Scope.v
-// /___/   /\     Timestamp : 09/10/2018 13:56:39
+// /___/   /\     Timestamp : 09/14/2018 19:29:50
 // \   \  /  \ 
 //  \___\/\___\ 
 //
@@ -56,7 +56,7 @@ module DCM_Scope(CLKIN_IN,
                            .O(CLKIN_IBUFG));
    BUFG  CLK0_BUFG_INST (.I(CLK0_BUF), 
                         .O(CLKFB_IN));
-   DCM #( .CLK_FEEDBACK("1X"), .CLKDV_DIVIDE(4.5), .CLKFX_DIVIDE(1), 
+   DCM #( .CLK_FEEDBACK("1X"), .CLKDV_DIVIDE(4.0), .CLKFX_DIVIDE(1), 
          .CLKFX_MULTIPLY(4), .CLKIN_DIVIDE_BY_2("FALSE"), 
          .CLKIN_PERIOD(41.667), .CLKOUT_PHASE_SHIFT("NONE"), 
          .DESKEW_ADJUST("SYSTEM_SYNCHRONOUS"), .DFS_FREQUENCY_MODE("LOW"), 
