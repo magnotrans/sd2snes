@@ -179,37 +179,53 @@ wire SNES_PAWR_end = ((SNES_PAWRr[6:1] & SNES_PAWRr[7:2]) == 6'b000001);
 wire SNES_RD_start = ((SNES_READr[6:1] | SNES_READr[7:2]) == 6'b111100);
 
 // MAGNO wire SNES_RD_end = ((SNES_READr[6:1] & SNES_READr[7:2]) == 6'b000001);
-wire SNES_RD_end = (SNES_READr[3:2] == 2'b01);
+wire SNES_RD_end = (SNES_READr[3:1] == 3'b011);
 // MAGNO wire SNES_WR_end = ((SNES_WRITEr[6:1] & SNES_WRITEr[7:2]) == 6'b000001);
-wire SNES_WR_end = (SNES_WRITEr[3:2] == 2'b01);
+wire SNES_WR_end = (SNES_WRITEr[3:1] == 3'b011);
 wire SNES_WR_strobe = (SNES_WRITEr[2:1] == 2'b01);
 
 wire SNES_cycle_start = ((SNES_CPU_CLKr[7:2] & SNES_CPU_CLKr[6:1]) == 6'b000011);
 wire SNES_cycle_end = ((SNES_CPU_CLKr[7:2] | SNES_CPU_CLKr[6:1]) == 6'b111000);
 
-/* MAGNO
+
+
+wire SNES_CPU_CLK = SNES_CPU_CLKr[2] & SNES_CPU_CLKr[1];
+wire SNES_PARD = SNES_PARDr[2] & SNES_PARDr[1];
+wire SNES_PAWR = SNES_PAWRr[2] & SNES_PAWRr[1];
+/*
+// active low ROM-select signal from SNES delayed 5 cycles (96MHz clock)
+wire SNES_ROMSEL = (SNES_ROMSELr[5] & SNES_ROMSELr[4]);
 // active low write signal from SNES delayed 2 cycles (96MHz clock)
 wire SNES_WRITE = SNES_WRITEr[2] & SNES_WRITEr[1];
 // active low read signal from SNES delayed 2 cycles (96MHz clock)
 wire SNES_READ = SNES_READr[2] & SNES_READr[1];
-wire SNES_CPU_CLK = SNES_CPU_CLKr[2] & SNES_CPU_CLKr[1];
-wire SNES_PARD = SNES_PARDr[2] & SNES_PARDr[1];
-wire SNES_PAWR = SNES_PAWRr[2] & SNES_PAWRr[1];
-wire SNES_ROMSEL = (SNES_ROMSELr[5] & SNES_ROMSELr[4]);
+*/
+reg SNES_ROMSEL;
+reg SNES_WRITE;
+reg SNES_READ;
+	always @(posedge CLK2)
+	begin
+		// active low ROM-select signal from SNES delayed 5 cycles (96MHz clock)
+		SNES_ROMSEL 				<= (SNES_ROMSELr[4] & SNES_ROMSELr[3]);
+		// active low write signal from SNES delayed 2 cycles (96MHz clock)
+		SNES_WRITE 					<= SNES_WRITEr[1] & SNES_WRITEr[0];
+		// active low read signal from SNES delayed 2 cycles (96MHz clock)
+		SNES_READ 					<= SNES_READr[1] & SNES_READr[0];
+	end
+	
+/*
 // snes address bus delayed by 6 cycles, 4 respect SNES_READ and SNES_WRITE
 wire [23:0] SNES_ADDR = (SNES_ADDRr[6] & SNES_ADDRr[5]);
 wire [7:0] SNES_PA = (SNES_PAr[6] & SNES_PAr[5]);
 wire [7:0] SNES_DATA_IN = (SNES_DATAr[3] & SNES_DATAr[2]);
 */
 
-// active low write signal from SNES delayed 2 cycles (96MHz clock)
-wire SNES_WRITE = SNES_WRITEr[2];
-// active low read signal from SNES delayed 2 cycles (96MHz clock)
-wire SNES_READ = SNES_READr[2];
+/* MAGNO
 wire SNES_CPU_CLK = SNES_CPU_CLKr;
 wire SNES_PARD = SNES_PARDr[2];
 wire SNES_PAWR = SNES_PAWRr[2];
-wire SNES_ROMSEL = SNES_ROMSELr[5];
+*/
+
 // snes address bus delayed by 6 cycles, 4 respect SNES_READ and SNES_WRITE
 wire [23:0] SNES_ADDR = SNES_ADDRr[6];
 wire [7:0] SNES_PA = SNES_PAr[6];
@@ -505,7 +521,7 @@ SDD1 sdd1_snes(
 	.SNES_WR(SDD1_SNES_WR),
 	.SNES_WR_End(SNES_WR_strobe) );	
 	
-/*
+
 wire [35:0] CONTROL0;
 
 SNES_Scope_Ctrl ICON (
@@ -516,21 +532,16 @@ SNES_Scope_Data ILA  (
     .CONTROL(CONTROL0), // INOUT BUS [35:0]
     .CLK(CLK2),
 	 //.CLK(CLK_SCOPE),
-	 .TRIG0(sdd1_reg_enable),
+	 .TRIG0(SNES_WRITE),
 	 .TRIG1(SNES_READ),
 	 .TRIG2(SDD1_SNES_ADDR),
     .TRIG3(SDD1_SNES_DATA_IN),
     .TRIG4(SDD1_SNES_DATA_OUT),
-	 //.TRIG5(SDD1_ROM_CE),
-	 //.TRIG6(SDD1_ROM_ADDR),
-	 //.TRIG7(SDD1_ROM_DATA),
-	 .TRIG5(SDD1_RAM_CE),
-	 .TRIG6(ROM_ADDR[21:0]),
-	 .TRIG7(ROM_DATA),
-	 .TRIG8(SNES_WRITE),
-	 //.TRIG9({SNES_WR_strobe, DBG_SDD1[2], DBG_SDD1[0], DBG_SDD1_tready, DBG_SDD1_tvalid, DBG_SDD1_tdata, DBG_SDD1_tuser}) );
-	 .TRIG9({SNES_DATA, ROM_WE, ROM_ADDR[22], SDD1_RAM_OE, SDD1_RAM_WE, ROM_BHE, ROM_BLE, SNES_DATABUS_DIR, SNES_DATABUS_OE}) );
-*/
+	 .TRIG5(SDD1_ROM_CE),
+	 .TRIG6(SDD1_ROM_ADDR),
+	 .TRIG7(SDD1_ROM_DATA));
+	 //.TRIG8({SNES_WR_strobe, DBG_SDD1[2], DBG_SDD1[0], DBG_SDD1_tready, DBG_SDD1_tvalid, DBG_SDD1_tdata, DBG_SDD1_tuser}) );
+
  
 
 reg [7:0] MCU_DINr;

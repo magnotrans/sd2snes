@@ -46,7 +46,11 @@ entity SDD1_Core is
 				-- data output to DMA
 				DMA_Data_tready					: in 	STD_LOGIC;
 				DMA_Data_tvalid					: out STD_LOGIC;
-				DMA_Data_tdata						: out STD_LOGIC_VECTOR(7 downto 0) );
+				DMA_Data_tdata						: out STD_LOGIC_VECTOR(7 downto 0);
+				-- DBG
+				FSM_Avoid_Collision				: in 	STD_LOGIC;
+				FSM_Start_Decompression			: in 	STD_LOGIC;
+				FSM_End_Decompression			: in 	STD_LOGIC);
 end SDD1_Core;
 
 

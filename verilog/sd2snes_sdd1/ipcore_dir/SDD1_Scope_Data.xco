@@ -1,7 +1,7 @@
 ##############################################################
 #
 # Xilinx Core Generator version 14.7
-# Date: Fri Sep 14 21:25:13 2018
+# Date: Fri Sep 14 21:29:52 2018
 #
 ##############################################################
 #
@@ -40,7 +40,7 @@ SELECT ILA_(ChipScope_Pro_-_Integrated_Logic_Analyzer) family Xilinx,_Inc. 1.05.
 # END Select
 # BEGIN Parameters
 CSET check_bramcount=false
-CSET component_name=SNES_Scope_Data
+CSET component_name=SDD1_Scope_Data
 CSET constraint_type=external
 CSET counter_width_1=Disabled
 CSET counter_width_10=Disabled
@@ -113,8 +113,8 @@ CSET match_units_7=1
 CSET match_units_8=1
 CSET match_units_9=1
 CSET max_sequence_levels=1
-CSET number_of_trigger_ports=8
-CSET sample_data_depth=2048
+CSET number_of_trigger_ports=13
+CSET sample_data_depth=4096
 CSET sample_on=Rising
 CSET trigger_port_width_1=1
 CSET trigger_port_width_10=8
@@ -125,12 +125,12 @@ CSET trigger_port_width_14=8
 CSET trigger_port_width_15=8
 CSET trigger_port_width_16=8
 CSET trigger_port_width_2=1
-CSET trigger_port_width_3=24
+CSET trigger_port_width_3=1
 CSET trigger_port_width_4=8
-CSET trigger_port_width_5=8
-CSET trigger_port_width_6=1
-CSET trigger_port_width_7=22
-CSET trigger_port_width_8=16
+CSET trigger_port_width_5=1
+CSET trigger_port_width_6=3
+CSET trigger_port_width_7=1
+CSET trigger_port_width_8=8
 CSET trigger_port_width_9=1
 CSET use_rpms=false
 # END Parameters
@@ -138,4 +138,4 @@ CSET use_rpms=false
 MISC pkg_timestamp=2013-10-13T14:13:15Z
 # END Extra information
 GENERATE
-# CRC: 82da82f2
+# CRC: b7a1492b

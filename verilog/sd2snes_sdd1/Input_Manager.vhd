@@ -51,16 +51,36 @@ entity Input_Manager is
 			Decoded_Bit_tuser					: in 	STD_LOGIC_VECTOR(7 downto 0);
 			Decoded_Bit_tvalid				: out STD_LOGIC;
 			Decoded_Bit_tdata					: out STD_LOGIC;
-			Decoded_Bit_tlast					: out STD_LOGIC;
-			-- DEBUG
-			DBG_tready							: out	STD_LOGIC;
-			DBG_tvalid							: out	STD_LOGIC;
-			DBG_Data								: out STD_LOGIC_VECTOR(7 downto 0));
+			Decoded_Bit_tlast					: out STD_LOGIC );
 end Input_Manager;
 
 
 architecture Behavioral of Input_Manager is
 	
+	component SDD1_Scope_Data
+  PORT (
+    CONTROL : INOUT STD_LOGIC_VECTOR(35 DOWNTO 0);
+    CLK : IN STD_LOGIC;
+    TRIG0 : IN STD_LOGIC_VECTOR(0 TO 0);
+    TRIG1 : IN STD_LOGIC_VECTOR(0 TO 0);
+    TRIG2 : IN STD_LOGIC_VECTOR(0 TO 0);
+    TRIG3 : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+    TRIG4 : IN STD_LOGIC_VECTOR(0 TO 0);
+    TRIG5 : IN STD_LOGIC_VECTOR(2 DOWNTO 0);
+    TRIG6 : IN STD_LOGIC_VECTOR(0 TO 0);
+    TRIG7 : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+    TRIG8 : IN STD_LOGIC_VECTOR(0 TO 0);
+    TRIG9 : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+    TRIG10 : IN STD_LOGIC_VECTOR(0 TO 0);
+    TRIG11 : IN STD_LOGIC_VECTOR(0 TO 0);
+    TRIG12 : IN STD_LOGIC_VECTOR(0 TO 0));
+end component;
+
+component SDD1_Scope_Ctrl
+  PORT (
+    CONTROL0 : INOUT STD_LOGIC_VECTOR(35 DOWNTO 0));
+end component;
+
 	COMPONENT FIFO_W2B
 		GENERIC( FIFO_DEPTH					: integer;
 					PROG_FULL_TH				: integer);
@@ -115,6 +135,7 @@ architecture Behavioral of Input_Manager is
 	type TipoEstado							is( WAIT_START, FILL_SERIALIZER, GET_HEADER, INIT_GOLOMB, WAIT_END);
 	signal estado								: TipoEstado := WAIT_START;
 	
+	signal Decoded_Bit_tvalid_i			: STD_LOGIC := '0';
 	signal Decoded_Bit_tlast_i				: STD_LOGIC := '0';
 	signal Decoded_Bit_tdata_i				: STD_LOGIC := '0';
 	signal Decoded_Bit_tuser_i				: STD_LOGIC_VECTOR(2 downto 0) := "000";
@@ -182,6 +203,8 @@ architecture Behavioral of Input_Manager is
 	signal FSM_Reset_FIFO					: STD_LOGIC := '1';
 	signal FSM_Get_Header					: STD_LOGIC := '0';
 	signal FSM_Load_Golomb					: STD_LOGIC := '0';
+	
+	signal Control_ILA						: STD_LOGIC_VECTOR(35 downto 0);
 
 begin  
 	-- module output tready
@@ -203,10 +226,6 @@ begin
 	    			dout									=> FIFO_Data,
 	    			prog_full							=> FIFO_Full );
 
-	-- DEBUG
-	DBG_tready							<= FIFO_rd;
-	DBG_tvalid							<= FIFO_valid;
-	DBG_Data								<= FIFO_Data;
 				
    -- convert input bytes to bitstream
 	Bitstream : Serializer
@@ -465,12 +484,13 @@ begin
 --																Decoded_G1_tlast	when "001",
 --																Decoded_G0_tlast	when others;
 
+	Decoded_Bit_tvalid								<= Decoded_Bit_tvalid_i;
 	Decoded_Bit_tdata									<= Decoded_Bit_tdata_i;
 	Decoded_Bit_tlast									<= Decoded_Bit_tlast_i;
 	Process(clk)
 	Begin
 		if rising_edge( clk ) then
-			Decoded_Bit_tvalid							<= Decoded_Bit_tready;
+			Decoded_Bit_tvalid_i							<= Decoded_Bit_tready;
 
 			-- multiplexor for routing Golomb decoded bit to module's output
 			if( Decoded_Bit_tready = '1' ) then
@@ -566,4 +586,26 @@ begin
 		FSM_Load_Golomb								<= '1'			when INIT_GOLOMB,
 																'0'			when others;
 	
+
+--	ICON : SDD1_Scope_Ctrl
+--		PORT MAP(CONTROL0 				=> Control_ILA );
+--
+--	-- 98 señales máximo
+--	ILA : SDD1_Scope_Data
+--		PORT MAP(CONTROL 					=> Control_ILA,
+--					CLK 						=> clk,
+--					TRIG0(0) 				=> FIFO_rd,
+--					TRIG1(0)					=> FIFO_valid,
+--					TRIG2(0)					=> FIFO_Full,
+--					TRIG3						=> FIFO_Data,
+--					TRIG4(0)					=> Bit_Shift_Rdy,
+--					TRIG5						=> Bit_Shift_Cnt,
+--					TRIG6(0)					=> Bit_Serializer_tvalid,
+--					TRIG7						=> Bit_Serializer_tdata,
+--					TRIG8(0)					=> Decoded_Bit_tready,
+--					TRIG9						=> Decoded_Bit_tuser,
+--					TRIG10(0)				=> Decoded_Bit_tvalid_i,
+--					TRIG11(0)				=> Decoded_Bit_tdata_i,
+--					TRIG12(0)				=> Decoded_Bit_tlast_i );
+					   	    
 end Behavioral;

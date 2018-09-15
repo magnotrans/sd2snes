@@ -73,7 +73,11 @@ architecture Behavioral of SDD1 is
 				-- data output to DMA
 				DMA_Data_tready					: in 	STD_LOGIC;
 				DMA_Data_tvalid					: out STD_LOGIC;
-				DMA_Data_tdata						: out STD_LOGIC_VECTOR(7 downto 0) );
+				DMA_Data_tdata						: out STD_LOGIC_VECTOR(7 downto 0);
+				-- DBG
+				FSM_Avoid_Collision				: in 	STD_LOGIC;
+				FSM_Start_Decompression			: in 	STD_LOGIC;
+				FSM_End_Decompression			: in 	STD_LOGIC );
 	END COMPONENT;
 	
 	type TipoEstado								is(WAIT_START, GET_DMA_CONFIG, START_DECOMPRESSION, WAIT_DMA_TRIGGERED, WAIT_DMA_START_TRANSFER, WAIT_TRANSFER_COMPLETE, END_DECOMPRESSION);
@@ -499,7 +503,11 @@ begin
 					-- data output to DMA
 					DMA_Data_tready					=> DMA_Data_tready,
 					DMA_Data_tvalid					=> DMA_Data_tvalid,
-					DMA_Data_tdata						=> DMA_Data_tdata );
+					DMA_Data_tdata						=> DMA_Data_tdata,
+					-- DBG					
+					FSM_Avoid_Collision				=> FSM_Avoid_Collision,
+					FSM_Start_Decompression			=> FSM_Start_Decompression,
+					FSM_End_Decompression			=> FSM_End_Decompression );
 
 	
 	-- tri-State Buffer control

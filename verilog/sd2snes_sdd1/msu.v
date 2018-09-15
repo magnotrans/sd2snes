@@ -114,10 +114,10 @@ initial msu_address_r = 14'h1234;
 msu_databuf snes_msu_databuf (
   .clka(clkin),
   .wea(~pgm_we), // Bus [0 : 0]
-  .addra(pgm_address), // Bus [13 : 0]
+  .addra(pgm_address[10:0]), // MAGNO Bus [13 : 0]
   .dina(pgm_data), // Bus [7 : 0]
   .clkb(clkin),
-  .addrb(msu_address), // Bus [13 : 0]
+  .addrb(msu_address[10:0]), // MAGNO Bus [13 : 0]
   .doutb(msu_data)
 ); // Bus [7 : 0]
 
