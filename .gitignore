@@ -209,3 +209,6 @@ RSaga3_esp.srm
 SNES_Memory_Map.jpg
 verilog/sd2snes_sdd1/main_SRAM.cpj
 SD2SNES_Buses.jpg
+MCU_HIT.jpg
+verilog/sd2snes_sdd1/main_top.cpj
+verilog/sd2snes_sdd1/sdd1_im.cpj

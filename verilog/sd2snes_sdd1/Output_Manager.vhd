@@ -132,257 +132,236 @@ begin
 	Process( clk )
 	Begin
 		if rising_edge( clk ) then
-			-- set counter's maximum value
-			if( estado = SET_2_BITPLANES ) then
-				Max_BPP								<= 0;
-				Cnt_Pair								<= 0;
-				Tile_Count							<= 0;
-				Flag_MODE7_Bitplane				<= '0';
-			elsif( estado = SET_4_BITPLANES ) then
-				Max_BPP								<= 1;
-				Cnt_Pair								<= 0;
-				Tile_Count							<= 0;
-				Flag_MODE7_Bitplane				<= '0';
-			elsif( estado = SET_8_BITPLANES ) then
-				Max_BPP								<= 3;
-				Cnt_Pair								<= 0;
-				Tile_Count							<= 0;
-				Flag_MODE7_Bitplane				<= '0';
-			elsif( estado = SET_MODE7_BITPLANE ) then
-				Max_BPP								<= 3;
-				Cnt_Pair								<= 0;
-				Tile_Count							<= 0;
-				Flag_MODE7_Bitplane				<= '1';
-			end if;
-			
-			-- when mode "11" (MODE7), each new pixel belongs to a different bitplane
-			if( Flag_MODE7_Bitplane = '1' ) then
-				if( FSM_New_MODE7 = '1' ) then
-					if( Cnt_Pair = Max_BPP ) then
-						Cnt_Pair						<= 0;
-					else
-						Cnt_Pair						<= Cnt_Pair + 1;
-					end if;
-				end if;
+			if( FSM_Reset = '1' ) then
+				Max_BPP									<= 0;
+				Cnt_Pair									<= 0;
+				Tile_Count								<= 0;
+				Flag_MODE7_Bitplane					<= '0';
+				FSM_Ready_MODE7						<= '0';
+				BPP0_Previous							<= '0';
+				BPP1_Previous							<= '0';
+				BPP2_Previous							<= '0';
+				BPP3_Previous							<= '0';
+				BPP4_Previous							<= '0';
+				BPP5_Previous							<= '0';
+				BPP6_Previous							<= '0';
+				BPP7_Previous							<= '0';
+				BPP0_Byte								<= X"00";
+				BPP1_Byte								<= X"00";
+				BPP2_Byte								<= X"00";
+				BPP3_Byte								<= X"00";
+				BPP4_Byte								<= X"00";
+				BPP5_Byte								<= X"00";
+				BPP6_Byte								<= X"00";
+				BPP7_Byte								<= X"00";
+				FSM_Ready_BPP0							<= '0';
+				FSM_Ready_BPP2							<= '0';
+				FSM_Ready_BPP4							<= '0';
+				FSM_Ready_BPP6							<= '0';
+				FSM_Ready_BPP1							<= '0';
+				FSM_Ready_BPP3							<= '0';
+				FSM_Ready_BPP5							<= '0';
+				FSM_Ready_BPP7							<= '0';	
 			else
-				-- increment bitplane when each the pair BPP0/BPP1 has been complete
-				if( FSM_Next_BPP1 = '1' ) then
-					-- when 8 lines of 1 2BPP tile have been complete, change bitplane 
-					if( Tile_Count = 7 ) then
-						if( Cnt_Pair = Max_BPP ) then
-							Cnt_Pair					<= 0;
-						else
-							Cnt_Pair					<= Cnt_Pair + 1;
-						end if;
-						Tile_Count					<= 0;
-					else
-						Tile_Count					<= Tile_Count + 1;
-					end if;
+				-- set counter's maximum value
+				if( estado = SET_2_BITPLANES ) then
+					Max_BPP								<= 0;
+					Cnt_Pair								<= 0;
+					Tile_Count							<= 0;
+					Flag_MODE7_Bitplane				<= '0';
+				elsif( estado = SET_4_BITPLANES ) then
+					Max_BPP								<= 1;
+					Cnt_Pair								<= 0;
+					Tile_Count							<= 0;
+					Flag_MODE7_Bitplane				<= '0';
+				elsif( estado = SET_8_BITPLANES ) then
+					Max_BPP								<= 3;
+					Cnt_Pair								<= 0;
+					Tile_Count							<= 0;
+					Flag_MODE7_Bitplane				<= '0';
+				elsif( estado = SET_MODE7_BITPLANE ) then
+					Max_BPP								<= 3;
+					Cnt_Pair								<= 0;
+					Tile_Count							<= 0;
+					Flag_MODE7_Bitplane				<= '1';
 				end if;
-			end if;
-			
-			-- store last decoded bit in corresponding bitplane
-			if( BPP_Bit_tvalid = '1' ) then
-				case Cnt_BPP is
-					-- BPP0
-					when 0 =>
-						BPP0_Previous				<= BPP0_Byte(7);
-						BPP0_Byte					<= BPP0_Byte(6 downto 0) & BPP_Bit_tdata;
-						
-					-- BPP1
-					when 1 =>
-						BPP1_Previous				<= BPP1_Byte(7);
-						BPP1_Byte					<= BPP1_Byte(6 downto 0) & BPP_Bit_tdata;
-		
-					-- BPP2
-					when 2 =>
-						BPP2_Previous				<= BPP2_Byte(7);
-						BPP2_Byte					<= BPP2_Byte(6 downto 0) & BPP_Bit_tdata;
-					
-					-- BPP3
-					when 3 =>
-						BPP3_Previous				<= BPP3_Byte(7);
-						BPP3_Byte					<= BPP3_Byte(6 downto 0) & BPP_Bit_tdata;
-	
-					-- BPP4
-					when 4 =>
-						BPP4_Previous				<= BPP4_Byte(7);
-						BPP4_Byte					<= BPP4_Byte(6 downto 0) & BPP_Bit_tdata;
-					
-					--BPP5
-					when 5 => 
-						BPP5_Previous				<= BPP5_Byte(7);
-						BPP5_Byte					<= BPP5_Byte(6 downto 0) & BPP_Bit_tdata;
-						
-					-- BPP6
-					when 6 =>
-						BPP6_Previous				<= BPP6_Byte(7);
-						BPP6_Byte					<= BPP6_Byte(6 downto 0) & BPP_Bit_tdata;
-	
-					-- BPP7
-					when 7 =>
-						BPP7_Previous				<= BPP7_Byte(7);
-						BPP7_Byte					<= BPP7_Byte(6 downto 0) & BPP_Bit_tdata;
-				end case;	
-			end if;
-			
-			-- when MODE7, a new byte is completed when BPP0 is asserted
-			FSM_Ready_MODE7						<= FSM_Next_BPP0 AND Flag_MODE7_Bitplane;
-			
-			-- decide which BPP will go to output register when completed
-			if( FSM_Next_BPP0 = '1' ) then
-				case Cnt_BPP is
-					-- BPP0
-					when 0 =>
-						FSM_Ready_BPP0				<= '1';
-						FSM_Ready_BPP2				<= '0';
-						FSM_Ready_BPP4				<= '0';
-						FSM_Ready_BPP6				<= '0';
-		
-					-- BPP2
-					when 2 =>
-						FSM_Ready_BPP0				<= '0';
-						FSM_Ready_BPP2				<= '1';
-						FSM_Ready_BPP4				<= '0';
-						FSM_Ready_BPP6				<= '0';
-	
-					-- BPP4
-					when 4 =>
-						FSM_Ready_BPP0				<= '0';
-						FSM_Ready_BPP2				<= '0';
-						FSM_Ready_BPP4				<= '1';
-						FSM_Ready_BPP6				<= '0';
-							
-					-- BPP6
-					when 6 =>
-						FSM_Ready_BPP0				<= '0';
-						FSM_Ready_BPP2				<= '0';
-						FSM_Ready_BPP4				<= '0';
-						FSM_Ready_BPP6				<= '1';
-						
-					when others =>
-						FSM_Ready_BPP0				<= '0';
-						FSM_Ready_BPP2				<= '0';
-						FSM_Ready_BPP4				<= '0';
-						FSM_Ready_BPP6				<= '0';						
-				end case;
 				
-				FSM_Ready_BPP1						<= '0';
-				FSM_Ready_BPP3						<= '0';
-				FSM_Ready_BPP5						<= '0';
-				FSM_Ready_BPP7						<= '0';	
-			elsif( FSM_Next_BPP1 = '1' ) then
-				case Cnt_BPP is
-					-- BPP1
-					when 1 =>
-						FSM_Ready_BPP1				<= '1';
-						FSM_Ready_BPP3				<= '0';
-						FSM_Ready_BPP5				<= '0';
-						FSM_Ready_BPP7				<= '0';
-		
-					-- BPP3
-					when 3 =>
-						FSM_Ready_BPP1				<= '0';
-						FSM_Ready_BPP3				<= '1';
-						FSM_Ready_BPP5				<= '0';
-						FSM_Ready_BPP7				<= '0';
-	
-					-- BPP5
-					when 5 =>
-						FSM_Ready_BPP1				<= '0';
-						FSM_Ready_BPP3				<= '0';
-						FSM_Ready_BPP5				<= '1';
-						FSM_Ready_BPP7				<= '0';
+				-- when mode "11" (MODE7), each new pixel belongs to a different bitplane
+				if( Flag_MODE7_Bitplane = '1' ) then
+					if( FSM_New_MODE7 = '1' ) then
+						if( Cnt_Pair = Max_BPP ) then
+							Cnt_Pair						<= 0;
+						else
+							Cnt_Pair						<= Cnt_Pair + 1;
+						end if;
+					end if;
+				else
+					-- increment bitplane when each the pair BPP0/BPP1 has been complete
+					if( FSM_Next_BPP1 = '1' ) then
+						-- when 8 lines of 1 2BPP tile have been complete, change bitplane 
+						if( Tile_Count = 7 ) then
+							if( Cnt_Pair = Max_BPP ) then
+								Cnt_Pair					<= 0;
+							else
+								Cnt_Pair					<= Cnt_Pair + 1;
+							end if;
+							Tile_Count					<= 0;
+						else
+							Tile_Count					<= Tile_Count + 1;
+						end if;
+					end if;
+				end if;
+				
+				-- store last decoded bit in corresponding bitplane
+				if( BPP_Bit_tvalid = '1' ) then
+					case Cnt_BPP is
+						-- BPP0
+						when 0 =>
+							BPP0_Previous				<= BPP0_Byte(7);
+							BPP0_Byte					<= BPP0_Byte(6 downto 0) & BPP_Bit_tdata;
 							
-					-- BPP7
-					when 7 =>
-						FSM_Ready_BPP1				<= '0';
-						FSM_Ready_BPP3				<= '0';
-						FSM_Ready_BPP5				<= '0';
-						FSM_Ready_BPP7				<= '1';
+						-- BPP1
+						when 1 =>
+							BPP1_Previous				<= BPP1_Byte(7);
+							BPP1_Byte					<= BPP1_Byte(6 downto 0) & BPP_Bit_tdata;
+			
+						-- BPP2
+						when 2 =>
+							BPP2_Previous				<= BPP2_Byte(7);
+							BPP2_Byte					<= BPP2_Byte(6 downto 0) & BPP_Bit_tdata;
 						
-					when others =>
-						FSM_Ready_BPP1				<= '0';
-						FSM_Ready_BPP3				<= '0';
-						FSM_Ready_BPP5				<= '0';
-						FSM_Ready_BPP7				<= '0';		
-				end case;
-				FSM_Ready_BPP0						<= '0';
-				FSM_Ready_BPP2						<= '0';
-				FSM_Ready_BPP4						<= '0';
-				FSM_Ready_BPP6						<= '0';
-			else
-				FSM_Ready_BPP0						<= '0';
-				FSM_Ready_BPP2						<= '0';
-				FSM_Ready_BPP4						<= '0';
-				FSM_Ready_BPP6						<= '0';
-				FSM_Ready_BPP1						<= '0';
-				FSM_Ready_BPP3						<= '0';
-				FSM_Ready_BPP5						<= '0';
-				FSM_Ready_BPP7						<= '0';	
+						-- BPP3
+						when 3 =>
+							BPP3_Previous				<= BPP3_Byte(7);
+							BPP3_Byte					<= BPP3_Byte(6 downto 0) & BPP_Bit_tdata;
+		
+						-- BPP4
+						when 4 =>
+							BPP4_Previous				<= BPP4_Byte(7);
+							BPP4_Byte					<= BPP4_Byte(6 downto 0) & BPP_Bit_tdata;
+						
+						--BPP5
+						when 5 => 
+							BPP5_Previous				<= BPP5_Byte(7);
+							BPP5_Byte					<= BPP5_Byte(6 downto 0) & BPP_Bit_tdata;
+							
+						-- BPP6
+						when 6 =>
+							BPP6_Previous				<= BPP6_Byte(7);
+							BPP6_Byte					<= BPP6_Byte(6 downto 0) & BPP_Bit_tdata;
+		
+						-- BPP7
+						when 7 =>
+							BPP7_Previous				<= BPP7_Byte(7);
+							BPP7_Byte					<= BPP7_Byte(6 downto 0) & BPP_Bit_tdata;
+					end case;	
+				end if;
+				
+				-- when MODE7, a new byte is completed when BPP0 is asserted
+				FSM_Ready_MODE7						<= FSM_Next_BPP0 AND Flag_MODE7_Bitplane;
+				
+				-- decide which BPP will go to output register when completed
+				if( FSM_Next_BPP0 = '1' ) then
+					case Cnt_BPP is
+						-- BPP0
+						when 0 =>
+							FSM_Ready_BPP0				<= '1';
+							FSM_Ready_BPP2				<= '0';
+							FSM_Ready_BPP4				<= '0';
+							FSM_Ready_BPP6				<= '0';
+			
+						-- BPP2
+						when 2 =>
+							FSM_Ready_BPP0				<= '0';
+							FSM_Ready_BPP2				<= '1';
+							FSM_Ready_BPP4				<= '0';
+							FSM_Ready_BPP6				<= '0';
+		
+						-- BPP4
+						when 4 =>
+							FSM_Ready_BPP0				<= '0';
+							FSM_Ready_BPP2				<= '0';
+							FSM_Ready_BPP4				<= '1';
+							FSM_Ready_BPP6				<= '0';
+								
+						-- BPP6
+						when 6 =>
+							FSM_Ready_BPP0				<= '0';
+							FSM_Ready_BPP2				<= '0';
+							FSM_Ready_BPP4				<= '0';
+							FSM_Ready_BPP6				<= '1';
+							
+						when others =>
+							FSM_Ready_BPP0				<= '0';
+							FSM_Ready_BPP2				<= '0';
+							FSM_Ready_BPP4				<= '0';
+							FSM_Ready_BPP6				<= '0';						
+					end case;
+					
+					FSM_Ready_BPP1						<= '0';
+					FSM_Ready_BPP3						<= '0';
+					FSM_Ready_BPP5						<= '0';
+					FSM_Ready_BPP7						<= '0';	
+				elsif( FSM_Next_BPP1 = '1' ) then
+					case Cnt_BPP is
+						-- BPP1
+						when 1 =>
+							FSM_Ready_BPP1				<= '1';
+							FSM_Ready_BPP3				<= '0';
+							FSM_Ready_BPP5				<= '0';
+							FSM_Ready_BPP7				<= '0';
+			
+						-- BPP3
+						when 3 =>
+							FSM_Ready_BPP1				<= '0';
+							FSM_Ready_BPP3				<= '1';
+							FSM_Ready_BPP5				<= '0';
+							FSM_Ready_BPP7				<= '0';
+		
+						-- BPP5
+						when 5 =>
+							FSM_Ready_BPP1				<= '0';
+							FSM_Ready_BPP3				<= '0';
+							FSM_Ready_BPP5				<= '1';
+							FSM_Ready_BPP7				<= '0';
+								
+						-- BPP7
+						when 7 =>
+							FSM_Ready_BPP1				<= '0';
+							FSM_Ready_BPP3				<= '0';
+							FSM_Ready_BPP5				<= '0';
+							FSM_Ready_BPP7				<= '1';
+							
+						when others =>
+							FSM_Ready_BPP1				<= '0';
+							FSM_Ready_BPP3				<= '0';
+							FSM_Ready_BPP5				<= '0';
+							FSM_Ready_BPP7				<= '0';		
+					end case;
+					FSM_Ready_BPP0						<= '0';
+					FSM_Ready_BPP2						<= '0';
+					FSM_Ready_BPP4						<= '0';
+					FSM_Ready_BPP6						<= '0';
+				else
+					FSM_Ready_BPP0						<= '0';
+					FSM_Ready_BPP2						<= '0';
+					FSM_Ready_BPP4						<= '0';
+					FSM_Ready_BPP6						<= '0';
+					FSM_Ready_BPP1						<= '0';
+					FSM_Ready_BPP3						<= '0';
+					FSM_Ready_BPP5						<= '0';
+					FSM_Ready_BPP7						<= '0';	
+				end if;
 			end if;
 		end if;
 	End Process;
-	
-	-- output context
-	--  BPP_Bit_tuser(9)		-> BPP0 / BPP1
-	--  BPP_Bit_tuser(8)		-> upper-left pixel
-	--  BPP_Bit_tuser(7)		-> upper pixel
-	--  BPP_Bit_tuser(6)		-> upper-right pixel
-	--  BPP_Bit_tuser(1)		-> before-last decoded pixel
-	--  BPP_Bit_tuser(0)		-> last decoded pixel
---	Process( Cnt_BPP, BPP0_Byte, BPP1_Byte, BPP2_Byte, BPP3_Byte, BPP4_Byte, BPP5_Byte, BPP6_Byte, BPP7_Byte,
---				BPP0_Previous, BPP1_Previous, BPP2_Previous, BPP3_Previous, BPP4_Previous, BPP5_Previous, BPP6_Previous, BPP7_Previous )
---	Begin
---		case Cnt_BPP is
---			when 0 =>
---				BPP_Bit_tuser(9)					<= '0';
---				BPP_Bit_tuser(8)					<= BPP0_Previous;
---				BPP_Bit_tuser(7 downto 0)		<= BPP0_Byte;
---			
---			when 1 =>
---				BPP_Bit_tuser(9)					<= '1';
---				BPP_Bit_tuser(8)					<= BPP1_Previous;
---				BPP_Bit_tuser(7 downto 0)		<= BPP1_Byte;
---				
---			when 2 =>
---				BPP_Bit_tuser(9)					<= '0';
---				BPP_Bit_tuser(8)					<= BPP2_Previous;
---				BPP_Bit_tuser(7 downto 0)		<= BPP2_Byte;
---					
---			when 3 =>
---				BPP_Bit_tuser(9)					<= '1';          
---				BPP_Bit_tuser(8)					<= BPP3_Previous;
---				BPP_Bit_tuser(7 downto 0)		<= BPP3_Byte;
---
---			when 4 =>
---				BPP_Bit_tuser(9)					<= '0';          
---				BPP_Bit_tuser(8)					<= BPP4_Previous;
---				BPP_Bit_tuser(7 downto 0)		<= BPP4_Byte;
---				
---			when 5 =>
---				BPP_Bit_tuser(9)					<= '1';          
---				BPP_Bit_tuser(8)					<= BPP5_Previous;
---				BPP_Bit_tuser(7 downto 0)		<= BPP5_Byte;
---				
---			when 6 =>
---				BPP_Bit_tuser(9)					<= '0';          
---				BPP_Bit_tuser(8)					<= BPP6_Previous;
---				BPP_Bit_tuser(7 downto 0)		<= BPP6_Byte;
---					
---			when 7 =>
---				BPP_Bit_tuser(9)					<= '1';          
---				BPP_Bit_tuser(8)					<= BPP7_Previous;
---				BPP_Bit_tuser(7 downto 0)		<= BPP7_Byte;
---		end case;
---	End Process;
-	
+		
 	
 	-- pre-calculate context bits and register them
 	Process( clk )
 	Begin
 		if rising_edge( clk ) then
-			if( Header_Valid = '1' ) then
+			if( FSM_Reset = '1' OR Header_Valid = '1' ) then
 				BPP_Bit_tuser								<= (others => '0');
 			elsif( BPP_Bit_tvalid = '1' ) then
 				case Cnt_BPP is

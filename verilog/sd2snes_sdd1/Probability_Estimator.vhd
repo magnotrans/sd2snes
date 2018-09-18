@@ -83,20 +83,27 @@ begin
 	Process( clk )
 	Begin
 		if rising_edge( clk ) then
-			if( Header_Valid = '1' ) then
-				Context_Type							<= Header_Context;
-			end if;
-			
-			-- when context is registered, we ask a new bit to IM
-			Decoded_Bit_tready_i						<= BPP_Bit_tready;
+			if( FSM_Reset = '1' ) then
+				Context_Type							<= "00";
+				Decoded_Bit_tready_i					<= '0';
+				Decoded_Bit_tdata_reg				<= '0';
+				Decoded_Bit_tlast_reg				<= '0';
+				Decoded_Bit_tready_reg				<= '0';
+			else
+				if( Header_Valid = '1' ) then
+					Context_Type						<= Header_Context;
+				end if;
 				
-			-- IM pre-fecthes each bit, so the data is available in the next cycle
-			if( Decoded_Bit_tvalid = '1' ) then
-				Decoded_Bit_tdata_reg				<= Decoded_Bit_tdata;
-				Decoded_Bit_tlast_reg				<= Decoded_Bit_tlast;
+				-- when context is registered, we ask a new bit to IM
+				Decoded_Bit_tready_i					<= BPP_Bit_tready;
+					
+				-- IM pre-fecthes each bit, so the data is available in the next cycle
+				if( Decoded_Bit_tvalid = '1' ) then
+					Decoded_Bit_tdata_reg			<= Decoded_Bit_tdata;
+					Decoded_Bit_tlast_reg			<= Decoded_Bit_tlast;
+				end if;
+				Decoded_Bit_tready_reg				<= Decoded_Bit_tvalid;
 			end if;
-			Decoded_Bit_tready_reg					<= Decoded_Bit_tvalid;
-			
 		end if;
 	End Process;
 	
@@ -137,7 +144,9 @@ begin
 	Process( clk )
 	Begin
 		if rising_edge( clk ) then
-			if( BPP_Bit_tready = '1' ) then
+			if( FSM_Reset = '1' ) then
+				Context									<= "00000";
+			elsif( BPP_Bit_tready = '1' ) then
 				Context									<= Context_tuser;
 			end if;
 		end if;
@@ -262,38 +271,6 @@ begin
 		end if;
 	End Process;
 
--- read state from RAM; Curr_State is valid 1 cycle after OM asks for a new bit
---		Curr_State										<= RAM_STAT(conv_integer(Context));
---	-- get Colomb decoder order from current state
---	with Curr_State select
---		Decoded_Bit_tuser								<= "001"	when 5,
---																"001"	when 6,
---																"001"	when 7,
---																"001"	when 8,
---																"010"	when 9,
---																"010"	when 10,
---																"010"	when 11,
---																"010"	when 12,
---																"011"	when 13,
---																"011"	when 14,
---																"011"	when 15,
---																"011"	when 16,
---																"100"	when 17,
---																"100"	when 18,
---																"101"	when 19,
---																"101"	when 20,
---																"110"	when 21,
---																"110"	when 22,
---																"111"	when 23,
---																"111"	when 24,
---																"001"	when 26,
---																"010"	when 27,
---																"011"	when 28,
---																"100"	when 29,
---																"101"	when 30,
---																"110"	when 31,
---																"111"	when 32,
---																"000"	when others;
 	-- output request to IM is done when context is registered from OM
 	Decoded_Bit_tready								<= Decoded_Bit_tready_i;
 		

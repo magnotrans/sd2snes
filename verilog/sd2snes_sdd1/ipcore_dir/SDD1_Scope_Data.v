@@ -8,7 +8,7 @@
 // \   \   \/     Version    : 14.7
 //  \   \         Application: Xilinx CORE Generator
 //  /   /         Filename   : SDD1_Scope_Data.v
-// /___/   /\     Timestamp  : Fri Sep 14 23:32:24 Hora de verano romance 2018
+// /___/   /\     Timestamp  : Mon Sep 17 23:14:19 Hora de verano romance 2018
 // \   \  /  \
 //  \___\/\___\
 //
@@ -29,11 +29,7 @@ module SDD1_Scope_Data(
     TRIG5,
     TRIG6,
     TRIG7,
-    TRIG8,
-    TRIG9,
-    TRIG10,
-    TRIG11,
-    TRIG12) /* synthesis syn_black_box syn_noprune=1 */;
+    TRIG8) /* synthesis syn_black_box syn_noprune=1 */;
 
 
 inout [35 : 0] CONTROL;
@@ -43,13 +39,9 @@ input [0 : 0] TRIG1;
 input [0 : 0] TRIG2;
 input [7 : 0] TRIG3;
 input [0 : 0] TRIG4;
-input [2 : 0] TRIG5;
+input [7 : 0] TRIG5;
 input [0 : 0] TRIG6;
-input [7 : 0] TRIG7;
+input [0 : 0] TRIG7;
 input [0 : 0] TRIG8;
-input [7 : 0] TRIG9;
-input [0 : 0] TRIG10;
-input [0 : 0] TRIG11;
-input [0 : 0] TRIG12;
 
 endmodule

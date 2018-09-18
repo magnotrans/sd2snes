@@ -503,6 +503,10 @@ assign SDD1_SNES_WR = SNES_WRITE;
 // when writing to PSRAM, back-up SRAM is at address $E0:0000 and up
 wire [23:0] SDD1_RAM_ADDR = MAPPED_SNES_ADDR;
 
+wire FSM_End_Decompression;
+wire FSM_Avoid_Collision;
+wire FSM_DMA_Transferring;
+
 // implementation of S-DD1 chip
 SDD1 sdd1_snes(
 	.MCLK(CLK2),
@@ -519,30 +523,12 @@ SDD1 sdd1_snes(
 	.SNES_DATA_OUT(SDD1_SNES_DATA_OUT),
 	.SNES_RD(SDD1_SNES_RD),
 	.SNES_WR(SDD1_SNES_WR),
-	.SNES_WR_End(SNES_WR_strobe) );	
+	.SNES_WR_End(SNES_WR_strobe),
+	.Avoid_Collision(FSM_Avoid_Collision),
+	.DMA_Transferring(FSM_DMA_Transferring),
+	.End_Decompress(FSM_End_Decompression)	);	
 	
 
-wire [35:0] CONTROL0;
-
-SNES_Scope_Ctrl ICON (
-    .CONTROL0(CONTROL0) // INOUT BUS [35:0]
-);
-
-SNES_Scope_Data ILA  (
-    .CONTROL(CONTROL0), // INOUT BUS [35:0]
-    .CLK(CLK2),
-	 //.CLK(CLK_SCOPE),
-	 .TRIG0(SNES_WRITE),
-	 .TRIG1(SNES_READ),
-	 .TRIG2(SDD1_SNES_ADDR),
-    .TRIG3(SDD1_SNES_DATA_IN),
-    .TRIG4(SDD1_SNES_DATA_OUT),
-	 .TRIG5(SDD1_ROM_CE),
-	 .TRIG6(SDD1_ROM_ADDR),
-	 .TRIG7(SDD1_ROM_DATA));
-	 //.TRIG8({SNES_WR_strobe, DBG_SDD1[2], DBG_SDD1[0], DBG_SDD1_tready, DBG_SDD1_tvalid, DBG_SDD1_tdata, DBG_SDD1_tuser}) );
-
- 
 
 reg [7:0] MCU_DINr;
 wire [7:0] MCU_DOUT;
@@ -791,14 +777,17 @@ wire MCU_HIT = MCU_WR_HIT | MCU_RD_HIT;
 
 // final address to PSRAM where ROM and SRAM is stored
 assign ROM_ADDR  = (SD_DMA_TO_ROM) ? MCU_ADDR[23:1] 
+						: (sdd1_enable & ~SDD1_ROM_CE)?{1'b0, SDD1_ROM_ADDR} 
+						: (sdd1_enable & ~SDD1_RAM_CE)?SDD1_RAM_ADDR[23:1]
 						: MCU_HIT ? ROM_ADDRr[23:1] 
-						: sdd1_enable?(~SDD1_RAM_CE?SDD1_RAM_ADDR[23:1]:{1'b0, SDD1_ROM_ADDR}) 
 						: MAPPED_SNES_ADDR[23:1];
 
 // lower address bit to select [7:0] (ROM_ADDR0 = '1') or [15:8] (ROM_ADDR0 = '0') byte in the 16-bit word read from PSRAM
 assign ROM_ADDR0 = (SD_DMA_TO_ROM) ? MCU_ADDR[0] 
+						: (sdd1_enable & ~SDD1_ROM_CE) ? 1'b0
+						: (sdd1_enable & ~SDD1_RAM_CE) ? SDD1_RAM_ADDR[0]
 						: MCU_HIT ? ROM_ADDRr[0] 
-						: sdd1_enable?(~SDD1_RAM_CE?SDD1_RAM_ADDR[0]:SDD1_ROM_ADDR[0]) 
+						//: sdd1_enable?(~SDD1_RAM_CE?SDD1_RAM_ADDR[0]:SDD1_ROM_ADDR[0]) 
 						: MAPPED_SNES_ADDR[0];
 
 reg[17:0] SNES_DEAD_CNTr;
@@ -994,4 +983,37 @@ snescmd_buf snescmd (
 );
 
 
+/*
+wire [35:0] CONTROL0;
+
+SNES_Scope_Ctrl ICON (
+    .CONTROL0(CONTROL0) // INOUT BUS [35:0]
+);
+
+SNES_Scope_Data ILA  (
+    .CONTROL(CONTROL0), // INOUT BUS [35:0]
+    .CLK(CLK2),
+	 //.CLK(CLK_SCOPE),
+	 .TRIG0(SNES_WRITE),
+	 .TRIG1(SNES_READ),
+	 .TRIG2(SDD1_ROM_CE),
+	 .TRIG3(ROM_ADDR),
+	 .TRIG4(ROM_DATA),
+	 .TRIG5(FSM_Avoid_Collision),
+	 .TRIG6(FSM_DMA_Transferring),
+	 .TRIG7(ROM_Data_tvalid),
+	 .TRIG8(SDD1_RAM_CE),
+	 .TRIG9(MCU_HIT));
+
+
+SNES_Scope_Data ILA  (
+    .CONTROL(CONTROL0),
+    .CLK(CLK_SCOPE),
+	 .TRIG0(SNES_WRITE),
+	 .TRIG1(SNES_READ),
+	 .TRIG2(SNES_ADDR),
+	 .TRIG3(SDD1_SNES_DATA_OUT),
+	 .TRIG4(FSM_DMA_Transferring),
+	 .TRIG5(FSM_End_Decompression));
+*/
 endmodule

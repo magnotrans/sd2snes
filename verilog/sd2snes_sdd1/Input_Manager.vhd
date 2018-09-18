@@ -51,35 +51,17 @@ entity Input_Manager is
 			Decoded_Bit_tuser					: in 	STD_LOGIC_VECTOR(7 downto 0);
 			Decoded_Bit_tvalid				: out STD_LOGIC;
 			Decoded_Bit_tdata					: out STD_LOGIC;
-			Decoded_Bit_tlast					: out STD_LOGIC );
+			Decoded_Bit_tlast					: out STD_LOGIC;
+			-- DEBUG;
+			ROM_CE								: in	STD_LOGIC;
+			ROM_ADDR								: in	STD_LOGIC_VECTOR(21 downto 0);
+			ROM_DATA								: in	STD_LOGIC_VECTOR(15 downto 0)	);
 end Input_Manager;
 
 
 architecture Behavioral of Input_Manager is
 	
-	component SDD1_Scope_Data
-  PORT (
-    CONTROL : INOUT STD_LOGIC_VECTOR(35 DOWNTO 0);
-    CLK : IN STD_LOGIC;
-    TRIG0 : IN STD_LOGIC_VECTOR(0 TO 0);
-    TRIG1 : IN STD_LOGIC_VECTOR(0 TO 0);
-    TRIG2 : IN STD_LOGIC_VECTOR(0 TO 0);
-    TRIG3 : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
-    TRIG4 : IN STD_LOGIC_VECTOR(0 TO 0);
-    TRIG5 : IN STD_LOGIC_VECTOR(2 DOWNTO 0);
-    TRIG6 : IN STD_LOGIC_VECTOR(0 TO 0);
-    TRIG7 : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
-    TRIG8 : IN STD_LOGIC_VECTOR(0 TO 0);
-    TRIG9 : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
-    TRIG10 : IN STD_LOGIC_VECTOR(0 TO 0);
-    TRIG11 : IN STD_LOGIC_VECTOR(0 TO 0);
-    TRIG12 : IN STD_LOGIC_VECTOR(0 TO 0));
-end component;
 
-component SDD1_Scope_Ctrl
-  PORT (
-    CONTROL0 : INOUT STD_LOGIC_VECTOR(35 DOWNTO 0));
-end component;
 
 	COMPONENT FIFO_W2B
 		GENERIC( FIFO_DEPTH					: integer;
@@ -200,11 +182,37 @@ end component;
 	signal Decoded_G7_tdata					: STD_LOGIC := '0';
 	signal Decoded_G7_tlast					: STD_LOGIC := '0';
 		
-	signal FSM_Reset_FIFO					: STD_LOGIC := '1';
+	signal FSM_Reset							: STD_LOGIC := '1';
 	signal FSM_Get_Header					: STD_LOGIC := '0';
 	signal FSM_Load_Golomb					: STD_LOGIC := '0';
-	
+
+
+
 	signal Control_ILA						: STD_LOGIC_VECTOR(35 downto 0);
+	signal DBG_Cnt									: STD_LOGIC_VECTOR(15 downto 0) := (others => '0');
+
+	component SDD1_Scope_Data
+  PORT (
+    CONTROL : INOUT STD_LOGIC_VECTOR(35 DOWNTO 0);
+    CLK : IN STD_LOGIC;
+    TRIG0 : IN STD_LOGIC_VECTOR(0 TO 0);
+    TRIG1 : IN STD_LOGIC_VECTOR(0 TO 0);
+    TRIG2 : IN STD_LOGIC_VECTOR(0 TO 0);
+    TRIG3 : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+    TRIG4 : IN STD_LOGIC_VECTOR(0 TO 0);
+    TRIG5 : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+    TRIG6 : IN STD_LOGIC_VECTOR(0 TO 0);
+    TRIG7 : IN STD_LOGIC_VECTOR(0 TO 0);
+	 TRIG8 : IN STD_LOGIC_VECTOR(0 to 0)	 );
+end component;
+
+					
+component SDD1_Scope_Ctrl
+  PORT (
+    CONTROL0 : INOUT STD_LOGIC_VECTOR(35 DOWNTO 0));
+end component;
+	
+
 
 begin  
 	-- module output tready
@@ -217,7 +225,7 @@ begin
 		--Generic map(32, 16)
 		Generic map(10, 8)
 		Port map(clk									=> clk,
-    				srst 									=> FSM_Reset_FIFO,
+    				srst 									=> FSM_Reset,
     				wr_en									=> FIFO_wr,
 	    			din 									=> ROM_Data_tdata,
 	    			din_strb								=> ROM_Data_tkeep,
@@ -226,11 +234,21 @@ begin
 	    			dout									=> FIFO_Data,
 	    			prog_full							=> FIFO_Full );
 
-				
+
+	Process( clk )
+	Begin
+		if rising_edge( clk ) then
+			if( FIFO_rd = '1' AND FIFO_valid = '1' ) then
+				DBG_Cnt								<= DBG_Cnt + 1;
+			end if;
+		end if;
+	End Process;
+
+	
    -- convert input bytes to bitstream
 	Bitstream : Serializer
    	Port map(clk									=> clk,
-   				Rst									=> FSM_Reset_FIFO,
+   				Rst									=> FSM_Reset,
    				FIFO_tready							=> FIFO_rd,
    	   		FIFO_tvalid							=> FIFO_valid,
    	   		FIFO_tdata							=> FIFO_Data,
@@ -244,104 +262,65 @@ begin
 	Process( clk )
 	Begin
 		if rising_edge( clk ) then
-			if( FSM_Get_Header = '1' ) then
+			if( FSM_Reset = '1' OR FSM_Get_Header = '0' ) then
+				Header_Valid							<= '0';
+			else
 				Header_Valid							<= '1';
 				Header_BPP								<= Bit_Serializer_tdata(0) & Bit_Serializer_tdata(1);
 				Header_Context							<= Bit_Serializer_tdata(2) & Bit_Serializer_tdata(3);
-			else
-				Header_Valid							<= '0';
 			end if;
 		end if;
 	End Process;
 	
---  	-- serializer is updated when last bit in the run is out of any Golomb decoder or after reading header
---  	Process( FSM_Load_Golomb, G0_Run_End, G1_Run_End, G2_Run_End, G3_Run_End, G4_Run_End, G5_Run_End, G6_Run_End,
---  				G7_Run_End, G0_shift, G1_shift, G2_shift, G3_shift, G4_shift, G5_shift, G6_shift, G7_shift )
---  	Begin
---		Bit_Shift_Cnt									<= "000";
---  		-- when header is already read, shift first 4 bits
---  		if( FSM_Load_Golomb = '1' ) then
---  			Bit_Shift_Cnt								<= "011";
---  		end if;
---  		
---		if( G0_Run_End = '1' ) then
---  			Bit_Shift_Cnt								<= G0_shift;
---  		end if;
---  		
---		if( G1_Run_End = '1' ) then
---  			Bit_Shift_Cnt								<= G1_shift;
---  		end if;
---  		
---		if( G2_Run_End = '1' ) then
---  			Bit_Shift_Cnt								<= G2_shift;
---  		end if;
---  		
---		if( G3_Run_End = '1' ) then
---  			Bit_Shift_Cnt								<= G3_shift;
---  		end if;
---  		
---		if( G4_Run_End = '1' ) then
---  			Bit_Shift_Cnt								<= G4_shift;
---  		end if;
---  		
---		if( G5_Run_End = '1' ) then
---  			Bit_Shift_Cnt								<= G5_shift;
---  		end if;
---  		
---		if( G6_Run_End = '1' ) then
---  			Bit_Shift_Cnt								<= G6_shift;
---  		end if;
---  		
---		if( G7_Run_End = '1' ) then
---  			Bit_Shift_Cnt								<= G7_shift;
---  		end if;
---  	End Process;
---	Bit_Shift_Rdy										<= FSM_Load_Golomb OR G0_Run_End OR G1_Run_End OR G2_Run_End OR G3_Run_End OR
---																G4_Run_End OR G5_Run_End OR G6_Run_End OR G7_Run_End;
-  	
+ 	
   	
   	-- serializer is updated when last bit in the run is out of any Golomb decoder or after reading header
 	Process( clk )
 	Begin
-		if rising_edge( clk ) then		
-			Bit_Shift_Rdy								<= FSM_Load_Golomb OR G0_Run_End OR G1_Run_End OR G2_Run_End OR G3_Run_End OR
+		if rising_edge( clk ) then
+			if( FSM_Reset = '1' ) then
+				Bit_Shift_Rdy							<= '0';
+				Bit_Shift_Cnt							<= "000";
+			else
+				Bit_Shift_Rdy							<= FSM_Load_Golomb OR G0_Run_End OR G1_Run_End OR G2_Run_End OR G3_Run_End OR
 																G4_Run_End OR G5_Run_End OR G6_Run_End OR G7_Run_End;
-
-			-- when header is already read, shift first 4 bits
-			if( FSM_Load_Golomb = '1' ) then
-				Bit_Shift_Cnt								<= "011";
-			end if;
-			
-			if( G0_Run_End = '1' ) then
-				Bit_Shift_Cnt								<= G0_shift;
-			end if;
-			
-			if( G1_Run_End = '1' ) then
-				Bit_Shift_Cnt								<= G1_shift;
-			end if;
-			
-			if( G2_Run_End = '1' ) then
-				Bit_Shift_Cnt								<= G2_shift;
-			end if;
-			
-			if( G3_Run_End = '1' ) then
-				Bit_Shift_Cnt								<= G3_shift;
-			end if;
-			
-			if( G4_Run_End = '1' ) then
-				Bit_Shift_Cnt								<= G4_shift;
-			end if;
-			
-			if( G5_Run_End = '1' ) then
-				Bit_Shift_Cnt								<= G5_shift;
-			end if;
-			
-			if( G6_Run_End = '1' ) then
-				Bit_Shift_Cnt								<= G6_shift;
-			end if;
-			
-			if( G7_Run_End = '1' ) then
-				Bit_Shift_Cnt								<= G7_shift;
+	
+				-- when header is already read, shift first 4 bits
+				if( FSM_Load_Golomb = '1' ) then
+					Bit_Shift_Cnt						<= "011";
+				end if;
+				
+				if( G0_Run_End = '1' ) then
+					Bit_Shift_Cnt						<= G0_shift;
+				end if;
+				
+				if( G1_Run_End = '1' ) then
+					Bit_Shift_Cnt						<= G1_shift;
+				end if;
+				
+				if( G2_Run_End = '1' ) then
+					Bit_Shift_Cnt						<= G2_shift;
+				end if;
+				
+				if( G3_Run_End = '1' ) then
+					Bit_Shift_Cnt						<= G3_shift;
+				end if;
+				
+				if( G4_Run_End = '1' ) then
+					Bit_Shift_Cnt						<= G4_shift;
+				end if;
+				
+				if( G5_Run_End = '1' ) then
+					Bit_Shift_Cnt						<= G5_shift;
+				end if;
+				
+				if( G6_Run_End = '1' ) then
+					Bit_Shift_Cnt						<= G6_shift;
+				end if;
+				
+				if( G7_Run_End = '1' ) then
+					Bit_Shift_Cnt						<= G7_shift;
+				end if;
 			end if;
 		end if;
 	End Process;
@@ -369,7 +348,7 @@ begin
    -- Order 0 Golomb decoder
    G0 : Golomb_0_Decoder
    	Port map(clk									=> clk,
-	   			rst									=> FSM_Reset_FIFO,
+	   			rst									=> FSM_Reset,
 	   	   	din_tready							=> G0_Run_End,
 	   	   	din_tdata							=> G0_din,
 		  	   	din_tuser							=> G0_shift,
@@ -381,7 +360,7 @@ begin
 	G1 : Golomb_N_Decoder
 		Generic map( 1 )
 		Port map(clk									=> clk,
-			   	rst									=> FSM_Reset_FIFO,
+			   	rst									=> FSM_Reset,
 	     			din_tready							=> G1_Run_End,
 	     			din_tdata							=> G1_din,
 	     			din_tuser							=> G1_shift,
@@ -394,7 +373,7 @@ begin
 	G2 : Golomb_N_Decoder
 		Generic map( 2 )
 		Port map(clk									=> clk,
-					rst									=> FSM_Reset_FIFO,
+					rst									=> FSM_Reset,
 	       		din_tready							=> G2_Run_End,
 	       		din_tdata							=> G2_din,
 	       		din_tuser							=> G2_shift,
@@ -406,7 +385,7 @@ begin
 	G3 : Golomb_N_Decoder
 		Generic map( 3 )
 		Port map(clk									=> clk,
-					rst									=> FSM_Reset_FIFO,
+					rst									=> FSM_Reset,
 	     			din_tready							=> G3_Run_End,
 	     			din_tdata							=> G3_din,
 	     			din_tuser							=> G3_shift,
@@ -418,7 +397,7 @@ begin
    G4 : Golomb_N_Decoder
    	Generic map( 4 )
    	Port map(clk									=> clk,
-   				rst									=> FSM_Reset_FIFO,
+   				rst									=> FSM_Reset,
       			din_tready							=> G4_Run_End,
       			din_tdata							=> G4_din,
       			din_tuser							=> G4_shift,
@@ -430,7 +409,7 @@ begin
 	G5 : Golomb_N_Decoder
 		Generic map( 5 )
 		Port map(clk									=> clk,
-					rst									=> FSM_Reset_FIFO,
+					rst									=> FSM_Reset,
 	     			din_tready							=> G5_Run_End,
 	     			din_tdata							=> G5_din,
 	     			din_tuser							=> G5_shift,
@@ -442,7 +421,7 @@ begin
    G6 : Golomb_N_Decoder
    	Generic map( 6 )
    	Port map(clk									=> clk,
-   				rst									=> FSM_Reset_FIFO,
+   				rst									=> FSM_Reset,
       			din_tready							=> G6_Run_End,
       			din_tdata							=> G6_din,
       			din_tuser							=> G6_shift,
@@ -454,7 +433,7 @@ begin
 	G7 : Golomb_N_Decoder
 		Generic map( 7 )
 		Port map(clk									=> clk,
-	    			rst									=> FSM_Reset_FIFO,
+	    			rst									=> FSM_Reset,
 	     			din_tready							=> G7_Run_End,
 	     			din_tdata							=> G7_din,
 	     			din_tuser							=> G7_shift,
@@ -463,75 +442,60 @@ begin
 	       		dout_tlast							=> Decoded_G7_tlast );
 
 
---	-- multiplexor for routing Golomb decoded bit to module's output
---	with Decoded_Bit_tuser_i select
---		Decoded_Bit_tdata_i							<= Decoded_G7_tdata	when "111",
---																Decoded_G6_tdata	when "110",
---																Decoded_G5_tdata	when "101",
---																Decoded_G4_tdata	when "100",
---																Decoded_G3_tdata	when "011",
---																Decoded_G2_tdata	when "010",
---																Decoded_G1_tdata	when "001",
---																Decoded_G0_tdata	when others;
---
---	with Decoded_Bit_tuser_i select
---		Decoded_Bit_tlast_i							<= Decoded_G7_tlast	when "111",
---																Decoded_G6_tlast	when "110",
---																Decoded_G5_tlast	when "101",
---																Decoded_G4_tlast	when "100",
---																Decoded_G3_tlast	when "011",
---																Decoded_G2_tlast	when "010",
---																Decoded_G1_tlast	when "001",
---																Decoded_G0_tlast	when others;
-
 	Decoded_Bit_tvalid								<= Decoded_Bit_tvalid_i;
 	Decoded_Bit_tdata									<= Decoded_Bit_tdata_i;
 	Decoded_Bit_tlast									<= Decoded_Bit_tlast_i;
 	Process(clk)
 	Begin
 		if rising_edge( clk ) then
-			Decoded_Bit_tvalid_i							<= Decoded_Bit_tready;
+			if( FSM_Reset = '1' ) then
+				Decoded_Bit_tvalid_i					<= '0';
+				Decoded_Bit_tdata_i					<= '0';
+				Decoded_Bit_tlast_i					<= '0';
+			else
+				Decoded_Bit_tvalid_i					<= Decoded_Bit_tready;
 
-			-- multiplexor for routing Golomb decoded bit to module's output
-			if( Decoded_Bit_tready = '1' ) then
-				if( Decoded_Bit_tuser(0) = '1' ) then
-					Decoded_Bit_tdata_i				<= Decoded_G0_tdata;
-					Decoded_Bit_tlast_i				<= Decoded_G0_tlast;
-				end if;
-				
-				if( Decoded_Bit_tuser(1) = '1' ) then
-					Decoded_Bit_tdata_i				<= Decoded_G1_tdata;
-					Decoded_Bit_tlast_i				<= Decoded_G1_tlast;
-				end if;
-				
-				if( Decoded_Bit_tuser(2) = '1' ) then
-					Decoded_Bit_tdata_i				<= Decoded_G2_tdata;
-					Decoded_Bit_tlast_i				<= Decoded_G2_tlast;
-				end if;
-				
-				if( Decoded_Bit_tuser(3) = '1' ) then
-					Decoded_Bit_tdata_i				<= Decoded_G3_tdata;
-					Decoded_Bit_tlast_i				<= Decoded_G3_tlast;
-				end if;
-				
-				if( Decoded_Bit_tuser(4) = '1' ) then
-					Decoded_Bit_tdata_i				<= Decoded_G4_tdata;
-					Decoded_Bit_tlast_i				<= Decoded_G4_tlast;
-				end if;
-				
-				if( Decoded_Bit_tuser(5) = '1' ) then
-					Decoded_Bit_tdata_i				<= Decoded_G5_tdata;
-					Decoded_Bit_tlast_i				<= Decoded_G5_tlast;
-				end if;
-				
-				if( Decoded_Bit_tuser(6) = '1' ) then
-					Decoded_Bit_tdata_i				<= Decoded_G6_tdata;
-					Decoded_Bit_tlast_i				<= Decoded_G6_tlast;
-				end if;
-
-				if( Decoded_Bit_tuser(7) = '1' ) then
-					Decoded_Bit_tdata_i				<= Decoded_G7_tdata;
-					Decoded_Bit_tlast_i				<= Decoded_G7_tlast;
+				-- multiplexor for routing Golomb decoded bit to module's output
+				if( Decoded_Bit_tready = '1' ) then
+					if( Decoded_Bit_tuser(0) = '1' ) then
+						Decoded_Bit_tdata_i			<= Decoded_G0_tdata;
+						Decoded_Bit_tlast_i			<= Decoded_G0_tlast;
+					end if;
+					
+					if( Decoded_Bit_tuser(1) = '1' ) then
+						Decoded_Bit_tdata_i			<= Decoded_G1_tdata;
+						Decoded_Bit_tlast_i			<= Decoded_G1_tlast;
+					end if;
+					
+					if( Decoded_Bit_tuser(2) = '1' ) then
+						Decoded_Bit_tdata_i			<= Decoded_G2_tdata;
+						Decoded_Bit_tlast_i			<= Decoded_G2_tlast;
+					end if;
+					
+					if( Decoded_Bit_tuser(3) = '1' ) then
+						Decoded_Bit_tdata_i			<= Decoded_G3_tdata;
+						Decoded_Bit_tlast_i			<= Decoded_G3_tlast;
+					end if;
+					
+					if( Decoded_Bit_tuser(4) = '1' ) then
+						Decoded_Bit_tdata_i			<= Decoded_G4_tdata;
+						Decoded_Bit_tlast_i			<= Decoded_G4_tlast;
+					end if;
+					
+					if( Decoded_Bit_tuser(5) = '1' ) then
+						Decoded_Bit_tdata_i			<= Decoded_G5_tdata;
+						Decoded_Bit_tlast_i			<= Decoded_G5_tlast;
+					end if;
+					
+					if( Decoded_Bit_tuser(6) = '1' ) then
+						Decoded_Bit_tdata_i			<= Decoded_G6_tdata;
+						Decoded_Bit_tlast_i			<= Decoded_G6_tlast;
+					end if;
+	
+					if( Decoded_Bit_tuser(7) = '1' ) then
+						Decoded_Bit_tdata_i			<= Decoded_G7_tdata;
+						Decoded_Bit_tlast_i			<= Decoded_G7_tlast;
+					end if;
 				end if;
 			end if;
 		end if;
@@ -576,7 +540,7 @@ begin
 	end Process;
 	
 	-- reset FIFO while decompression is stopped
-	FSM_Reset_FIFO										<= '1' when estado = WAIT_START			else '0';
+	FSM_Reset											<= '1' when estado = WAIT_START			else '0';
 	
 	-- enable register to capture header data
 	FSM_Get_Header										<= '1' when estado = GET_HEADER			else '0';
@@ -585,27 +549,27 @@ begin
 	with estado select
 		FSM_Load_Golomb								<= '1'			when INIT_GOLOMB,
 																'0'			when others;
-	
 
---	ICON : SDD1_Scope_Ctrl
---		PORT MAP(CONTROL0 				=> Control_ILA );
---
---	-- 98 señales máximo
---	ILA : SDD1_Scope_Data
---		PORT MAP(CONTROL 					=> Control_ILA,
---					CLK 						=> clk,
---					TRIG0(0) 				=> FIFO_rd,
---					TRIG1(0)					=> FIFO_valid,
---					TRIG2(0)					=> FIFO_Full,
---					TRIG3						=> FIFO_Data,
---					TRIG4(0)					=> Bit_Shift_Rdy,
---					TRIG5						=> Bit_Shift_Cnt,
---					TRIG6(0)					=> Bit_Serializer_tvalid,
---					TRIG7						=> Bit_Serializer_tdata,
---					TRIG8(0)					=> Decoded_Bit_tready,
---					TRIG9						=> Decoded_Bit_tuser,
---					TRIG10(0)				=> Decoded_Bit_tvalid_i,
---					TRIG11(0)				=> Decoded_Bit_tdata_i,
---					TRIG12(0)				=> Decoded_Bit_tlast_i );
-					   	    
+
+
+
+
+	ICON : SDD1_Scope_Ctrl
+		PORT MAP(CONTROL0 				=> Control_ILA );
+
+	-- 98 señales máximo
+	ILA : SDD1_Scope_Data
+		PORT MAP(CONTROL 					=> Control_ILA,
+					CLK 						=> clk,
+					TRIG0(0) 				=> FIFO_rd,
+					TRIG1(0)					=> FIFO_valid,
+					TRIG2(0)					=> DMA_In_Progress,
+					TRIG3						=> FIFO_Data,
+					TRIG4(0)					=> Decoded_Bit_tready,
+					TRIG5						=> Decoded_Bit_tuser,
+					TRIG6(0)					=> Decoded_Bit_tvalid_i,
+					TRIG7(0)					=> Decoded_Bit_tdata_i,
+					TRIG8(0)					=> Decoded_Bit_tlast_i );
+					
+
 end Behavioral;

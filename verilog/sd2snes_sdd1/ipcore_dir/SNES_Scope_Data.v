@@ -8,7 +8,7 @@
 // \   \   \/     Version    : 14.7
 //  \   \         Application: Xilinx CORE Generator
 //  /   /         Filename   : SNES_Scope_Data.v
-// /___/   /\     Timestamp  : Fri Sep 14 23:27:53 Hora de verano romance 2018
+// /___/   /\     Timestamp  : Sun Sep 16 21:27:16 Hora de verano romance 2018
 // \   \  /  \
 //  \___\/\___\
 //
@@ -26,9 +26,7 @@ module SNES_Scope_Data(
     TRIG2,
     TRIG3,
     TRIG4,
-    TRIG5,
-    TRIG6,
-    TRIG7) /* synthesis syn_black_box syn_noprune=1 */;
+    TRIG5) /* synthesis syn_black_box syn_noprune=1 */;
 
 
 inout [35 : 0] CONTROL;
@@ -37,9 +35,7 @@ input [0 : 0] TRIG0;
 input [0 : 0] TRIG1;
 input [23 : 0] TRIG2;
 input [7 : 0] TRIG3;
-input [7 : 0] TRIG4;
+input [0 : 0] TRIG4;
 input [0 : 0] TRIG5;
-input [21 : 0] TRIG6;
-input [15 : 0] TRIG7;
 
 endmodule

@@ -1,7 +1,7 @@
 ##############################################################
 #
 # Xilinx Core Generator version 14.7
-# Date: Fri Sep 14 21:29:52 2018
+# Date: Mon Sep 17 21:11:40 2018
 #
 ##############################################################
 #
@@ -53,7 +53,7 @@ CSET counter_width_16=Disabled
 CSET counter_width_2=Disabled
 CSET counter_width_3=Disabled
 CSET counter_width_4=Disabled
-CSET counter_width_5=Disabled
+CSET counter_width_5=16
 CSET counter_width_6=Disabled
 CSET counter_width_7=Disabled
 CSET counter_width_8=Disabled
@@ -113,14 +113,14 @@ CSET match_units_7=1
 CSET match_units_8=1
 CSET match_units_9=1
 CSET max_sequence_levels=1
-CSET number_of_trigger_ports=13
-CSET sample_data_depth=4096
+CSET number_of_trigger_ports=9
+CSET sample_data_depth=8192
 CSET sample_on=Rising
 CSET trigger_port_width_1=1
 CSET trigger_port_width_10=8
-CSET trigger_port_width_11=1
-CSET trigger_port_width_12=1
-CSET trigger_port_width_13=1
+CSET trigger_port_width_11=8
+CSET trigger_port_width_12=8
+CSET trigger_port_width_13=8
 CSET trigger_port_width_14=8
 CSET trigger_port_width_15=8
 CSET trigger_port_width_16=8
@@ -128,9 +128,9 @@ CSET trigger_port_width_2=1
 CSET trigger_port_width_3=1
 CSET trigger_port_width_4=8
 CSET trigger_port_width_5=1
-CSET trigger_port_width_6=3
+CSET trigger_port_width_6=8
 CSET trigger_port_width_7=1
-CSET trigger_port_width_8=8
+CSET trigger_port_width_8=1
 CSET trigger_port_width_9=1
 CSET use_rpms=false
 # END Parameters
@@ -138,4 +138,4 @@ CSET use_rpms=false
 MISC pkg_timestamp=2013-10-13T14:13:15Z
 # END Extra information
 GENERATE
-# CRC: b7a1492b
+# CRC: 94d8f76a

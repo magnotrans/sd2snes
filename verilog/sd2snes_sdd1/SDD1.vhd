@@ -48,7 +48,11 @@ entity SDD1 is
 			SNES_DATA_OUT						: out STD_LOGIC_VECTOR(7 downto 0);
 			SNES_RD								: in 	STD_LOGIC;
 			SNES_WR								: in 	STD_LOGIC;
-			SNES_WR_End							: in 	STD_LOGIC );
+			SNES_WR_End							: in 	STD_LOGIC;
+			--DEBUG
+			Avoid_Collision					: out STD_LOGIC;
+			DMA_Transferring					: out STD_LOGIC;
+			End_Decompress						: out STD_LOGIC	);
 end SDD1;
 
 
@@ -77,7 +81,10 @@ architecture Behavioral of SDD1 is
 				-- DBG
 				FSM_Avoid_Collision				: in 	STD_LOGIC;
 				FSM_Start_Decompression			: in 	STD_LOGIC;
-				FSM_End_Decompression			: in 	STD_LOGIC );
+				FSM_End_Decompression			: in 	STD_LOGIC;
+				ROM_CE								: in	STD_LOGIC;
+				ROM_ADDR								: in	STD_LOGIC_VECTOR(21 downto 0);
+				ROM_DATA								: in	STD_LOGIC_VECTOR(15 downto 0) );
 	END COMPONENT;
 	
 	type TipoEstado								is(WAIT_START, GET_DMA_CONFIG, START_DECOMPRESSION, WAIT_DMA_TRIGGERED, WAIT_DMA_START_TRANSFER, WAIT_TRANSFER_COMPLETE, END_DECOMPRESSION);
@@ -120,8 +127,14 @@ architecture Behavioral of SDD1 is
 	signal FSM_End_Decompression				: STD_LOGIC := '0';
 	
 	signal SNES_RD_Pipe							: STD_LOGIC_VECTOR(1 downto 0) := "11";
+	signal ROM_ADDR_i							: STD_LOGIC_VECTOR(21 downto 0);
+	signal ROM_CS_i								: STD_LOGIC := '0';
 	
 begin
+	Avoid_Collision								<= FSM_Avoid_Collision;
+	DMA_Transferring								<= FSM_DMA_Transferring;
+	End_Decompress									<= FSM_End_Decompression;
+	
 	-- decode SRAM access [$7X]:[$6000-$7FFF]; be careful with W-RAM $7E and $7F
 	Process(SNES_ADDR, SNES_RD, SNES_WR)
 	Begin
@@ -150,67 +163,70 @@ begin
 		if( FSM_DMA_Transferring = '1' OR (FSM_Avoid_Collision = '1' AND SNES_RD = '1') ) then
 			-- check which megabit is mapped onto $C0
 			if( Curr_Src_Addr(23 downto 20) = X"C" ) then
-				ROM_ADDR								<= Bank_Map_C0(2 downto 0) & Curr_Src_Addr(19 downto 1);
-				ROM_CS								<= NOT ROM_Data_tready;
+				ROM_ADDR_i							<= Bank_Map_C0(2 downto 0) & Curr_Src_Addr(19 downto 1);
+				ROM_CS_i								<= NOT ROM_Data_tready;
 				ROM_OE								<= NOT ROM_Data_tready;
 			-- check which megabit is mapped onto $C0
 			elsif( Curr_Src_Addr(23 downto 20) = X"D" ) then
-				ROM_ADDR								<= Bank_Map_D0(2 downto 0) & Curr_Src_Addr(19 downto 1);
-				ROM_CS								<= NOT ROM_Data_tready;
+				ROM_ADDR_i								<= Bank_Map_D0(2 downto 0) & Curr_Src_Addr(19 downto 1);
+				ROM_CS_i								<= NOT ROM_Data_tready;
 				ROM_OE								<= NOT ROM_Data_tready;			
 			-- check which megabit is mapped onto $C0
 			elsif( Curr_Src_Addr(23 downto 20) = X"E" ) then
-				ROM_ADDR								<= Bank_Map_E0(2 downto 0) & Curr_Src_Addr(19 downto 1);
-				ROM_CS								<= NOT ROM_Data_tready;
+				ROM_ADDR_i								<= Bank_Map_E0(2 downto 0) & Curr_Src_Addr(19 downto 1);
+				ROM_CS_i								<= NOT ROM_Data_tready;
 				ROM_OE								<= NOT ROM_Data_tready;			
 			-- check which megabit is mapped onto $C0
 			elsif( Curr_Src_Addr(23 downto 20) = X"F" ) then
-				ROM_ADDR								<= Bank_Map_F0(2 downto 0) & Curr_Src_Addr(19 downto 1);
-				ROM_CS								<= NOT ROM_Data_tready;
+				ROM_ADDR_i								<= Bank_Map_F0(2 downto 0) & Curr_Src_Addr(19 downto 1);
+				ROM_CS_i								<= NOT ROM_Data_tready;
 				ROM_OE								<= NOT ROM_Data_tready;						
 			else
-				ROM_ADDR								<= Curr_Src_Addr(22 downto 1);
-				ROM_CS								<= '1';
+				ROM_ADDR_i								<= Curr_Src_Addr(22 downto 1);
+				ROM_CS_i								<= '1';
 				ROM_OE								<= '1';
 			end if;
 		elsif( SNES_RD = '0' ) then
 			-- Low addresses are not mapped
 			if( SNES_ADDR(22) = '0' AND SNES_ADDR(15) = '1' ) then
-				ROM_ADDR								<= SNES_ADDR(23 downto 16) & SNES_ADDR(14 downto 1);
-				ROM_CS								<= '0';
+				ROM_ADDR_i								<= SNES_ADDR(23 downto 16) & SNES_ADDR(14 downto 1);
+				ROM_CS_i								<= '0';
 				ROM_OE								<= '0';
 			-- check which megabit is mapped onto $C0
 			elsif( SNES_ADDR(23 downto 20) = X"C" ) then
-				ROM_ADDR								<= Bank_Map_C0(2 downto 0) & SNES_ADDR(19 downto 1);
-				ROM_CS								<= '0';
+				ROM_ADDR_i								<= Bank_Map_C0(2 downto 0) & SNES_ADDR(19 downto 1);
+				ROM_CS_i								<= '0';
 				ROM_OE								<= '0';
 			-- check which megabit is mapped onto $C0
 			elsif( SNES_ADDR(23 downto 20) = X"D" ) then
-				ROM_ADDR								<= Bank_Map_D0(2 downto 0) & SNES_ADDR(19 downto 1);
-				ROM_CS								<= '0';
+				ROM_ADDR_i								<= Bank_Map_D0(2 downto 0) & SNES_ADDR(19 downto 1);
+				ROM_CS_i								<= '0';
 				ROM_OE								<= '0';			
 			-- check which megabit is mapped onto $C0
 			elsif( SNES_ADDR(23 downto 20) = X"E" ) then
-				ROM_ADDR								<= Bank_Map_E0(2 downto 0) & SNES_ADDR(19 downto 1);
-				ROM_CS								<= '0';
+				ROM_ADDR_i								<= Bank_Map_E0(2 downto 0) & SNES_ADDR(19 downto 1);
+				ROM_CS_i								<= '0';
 				ROM_OE								<= '0';			
 			-- check which megabit is mapped onto $C0
 			elsif( SNES_ADDR(23 downto 20) = X"F" ) then
-				ROM_ADDR								<= Bank_Map_F0(2 downto 0) & SNES_ADDR(19 downto 1);
-				ROM_CS								<= '0';
+				ROM_ADDR_i								<= Bank_Map_F0(2 downto 0) & SNES_ADDR(19 downto 1);
+				ROM_CS_i								<= '0';
 				ROM_OE								<= '0';						
 			else
-				ROM_ADDR								<= SNES_ADDR(21 downto 0);
-				ROM_CS								<= '1';
+				ROM_ADDR_i								<= SNES_ADDR(21 downto 0);
+				ROM_CS_i								<= '1';
 				ROM_OE								<= '1';
 			end if;
 		else
-			ROM_ADDR									<= SNES_ADDR(21 downto 0);
-			ROM_CS									<= '1';
+			ROM_ADDR_i									<= SNES_ADDR(21 downto 0);
+			ROM_CS_i									<= '1';
 			ROM_OE									<= '1';			
 		end if;
 	End Process;
 
+	ROM_CS											<= ROM_CS_i;
+	ROM_ADDR											<= ROM_ADDR_i;
+	
 	-- decode data bus
 	Process(SNES_RD, SNES_ADDR, ROM_DATA)
 	Begin
@@ -507,7 +523,10 @@ begin
 					-- DBG					
 					FSM_Avoid_Collision				=> FSM_Avoid_Collision,
 					FSM_Start_Decompression			=> FSM_Start_Decompression,
-					FSM_End_Decompression			=> FSM_End_Decompression );
+					FSM_End_Decompression			=> FSM_End_Decompression,
+					ROM_CE								=> ROM_CS_i,
+					ROM_ADDR								=> ROM_ADDR_i,
+					ROM_DATA								=> ROM_DATA );
 
 	
 	-- tri-State Buffer control

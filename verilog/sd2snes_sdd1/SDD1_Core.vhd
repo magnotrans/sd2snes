@@ -50,7 +50,10 @@ entity SDD1_Core is
 				-- DBG
 				FSM_Avoid_Collision				: in 	STD_LOGIC;
 				FSM_Start_Decompression			: in 	STD_LOGIC;
-				FSM_End_Decompression			: in 	STD_LOGIC);
+				FSM_End_Decompression			: in 	STD_LOGIC;
+				ROM_CE								: in	STD_LOGIC;
+				ROM_ADDR								: in	STD_LOGIC_VECTOR(21 downto 0);
+				ROM_DATA								: in	STD_LOGIC_VECTOR(15 downto 0));
 end SDD1_Core;
 
 
@@ -74,7 +77,11 @@ architecture Behavioral of SDD1_Core is
 				Decoded_Bit_tuser					: in 	STD_LOGIC_VECTOR(7 downto 0);
 				Decoded_Bit_tvalid				: out STD_LOGIC;
 				Decoded_Bit_tdata					: out STD_LOGIC;
-				Decoded_Bit_tlast					: out STD_LOGIC);
+				Decoded_Bit_tlast					: out STD_LOGIC;
+				--DEBUG
+				ROM_CE								: in	STD_LOGIC;
+				ROM_ADDR								: in	STD_LOGIC_VECTOR(21 downto 0);
+				ROM_DATA								: in	STD_LOGIC_VECTOR(15 downto 0));
 	END COMPONENT;
 
 	COMPONENT Probability_Estimator
@@ -129,7 +136,8 @@ architecture Behavioral of SDD1_Core is
 	signal BPP_Bit_tuser							: STD_LOGIC_VECTOR(9 downto 0) := (others => '0');
 	signal BPP_Bit_tvalid						: STD_LOGIC := '0';
 	signal BPP_Bit_tdata							: STD_LOGIC := '0';
-	
+
+	signal DBG_Cnt									: STD_LOGIC_VECTOR(17 downto 0) := (others => '0');
 
 begin 
 	-- get data from ROM and decode it into N-order Golomb runs
@@ -151,9 +159,11 @@ begin
 					Decoded_Bit_tuser				=> Decoded_Bit_tuser,
 					Decoded_Bit_tvalid			=> Decoded_Bit_tvalid,
 					Decoded_Bit_tdata				=> Decoded_Bit_tdata,
-					Decoded_Bit_tlast				=> Decoded_Bit_tlast  );
+					Decoded_Bit_tlast				=> Decoded_Bit_tlast,
+					ROM_CE							=> ROM_CE,
+					ROM_ADDR							=> ROM_ADDR,
+					ROM_DATA							=> ROM_DATA  );
 
-				
 				
 	-- get Golomb data and context to decode pixel
 	PE : Probability_Estimator
