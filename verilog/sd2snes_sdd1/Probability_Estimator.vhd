@@ -83,17 +83,16 @@ begin
 	Process( clk )
 	Begin
 		if rising_edge( clk ) then
+			if( Header_Valid = '1' ) then
+				Context_Type							<= Header_Context;
+			end if;
+
 			if( FSM_Reset = '1' ) then
-				Context_Type							<= "00";
 				Decoded_Bit_tready_i					<= '0';
 				Decoded_Bit_tdata_reg				<= '0';
 				Decoded_Bit_tlast_reg				<= '0';
 				Decoded_Bit_tready_reg				<= '0';
-			else
-				if( Header_Valid = '1' ) then
-					Context_Type						<= Header_Context;
-				end if;
-				
+			else			
 				-- when context is registered, we ask a new bit to IM
 				Decoded_Bit_tready_i					<= BPP_Bit_tready;
 					

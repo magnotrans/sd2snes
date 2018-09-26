@@ -103,7 +103,7 @@ begin
 				-- write command
 				if( wr_en = '1' ) then
 					-- write 2 bytes
-					if( din_strb = "11" AND data_cnt < (FIFO_DEPTH-1) ) then				
+					if( din_strb = "11" AND data_cnt < (FIFO_DEPTH-1) ) then
 						-- check write pointer limits
 						if( wr_ptr = (FIFO_DEPTH-1) ) then
 							-- write data to array

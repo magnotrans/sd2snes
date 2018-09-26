@@ -122,6 +122,7 @@ architecture Behavioral of Output_Manager is
 	signal FSM_Ready_BPP6						: STD_LOGIC := '0';
 	signal FSM_Ready_BPP7						: STD_LOGIC := '0';
 	signal FSM_Ready_MODE7						: STD_LOGIC := '0';
+	signal FSM_New_Tile							: STD_LOGIC := '0';
 
 begin
 	-- current bitplane results from concatenation of current even/odd bitplane and
@@ -373,18 +374,22 @@ begin
 						BPP_Bit_tuser(7 downto 0)		<= BPP1_Byte;
 						
 					-- BPP1
-					when 1 =>
-						-- in 2 bitplane mode, if last decoded bit was BPP1, next plane is BBP0
-						if( Max_BPP = 0 ) then
-							BPP_Bit_tuser(9)				<= '0';
-							BPP_Bit_tuser(8)				<= BPP0_Previous;
-							BPP_Bit_tuser(7 downto 0)	<= BPP0_Byte;
-						-- in any other mode, nex plane is BPP2
-						else
+					when 1 =>					
+						-- in 4BPP or 8BPP mode, next plane is BPP2 if a tile is about to start
+						-- BPP0/BPP1..(x6)..BPP0/BPP1/BPP2/BPP3..(x6)..BPP2/BPP3
+						-- BPP0/BPP1..(x6)..BPP0/BPP1/BPP2/BPP3..(x6)..BPP2/BPP3/BPP4/BPP5..(x6)..BPP4/BPP5/BPP6/BPP7..(x6)..BPP6/BPP7
+						if( Max_BPP > 0 AND FSM_New_Tile = '1' ) then
 							BPP_Bit_tuser(9)				<= '0';
 							BPP_Bit_tuser(8)				<= BPP2_Previous;
 							BPP_Bit_tuser(7 downto 0)	<= BPP2_Byte;
+						-- in 2BPP mode, next plane is always BPP0; tile order is
+						-- BPP0/BPP1..(x6)..BPP0/BPP1
+						else
+							BPP_Bit_tuser(9)				<= '0';
+							BPP_Bit_tuser(8)				<= BPP0_Previous;
+							BPP_Bit_tuser(7 downto 0)	<= BPP0_Byte;
 						end if;
+
 		
 					-- BPP2
 					when 2 =>
@@ -395,18 +400,26 @@ begin
 					
 					-- BPP3
 					when 3 =>
-						-- in 4 bitplane mode, if last decoded bit was BPP3, next plane is BBP0
-						if( Max_BPP = 1 ) then
+						-- in 4BPP, next plane is BPP0 if a tile is about to start
+						-- BPP0/BPP1..(x6)..BPP0/BPP1/BPP2/BPP3..(x6)..BPP2/BPP3
+						if( Max_BPP = 1 AND FSM_New_Tile = '1' ) then
 							BPP_Bit_tuser(9)				<= '0';
 							BPP_Bit_tuser(8)				<= BPP0_Previous;
 							BPP_Bit_tuser(7 downto 0)	<= BPP0_Byte;
-						-- in any other mode, nex plane is BPP4
-						else
+						-- in 8BPP mode or MODE7, next plane is BPP4 if a tile is about to start
+						-- BPP0/BPP1..(x6)..BPP0/BPP1/BPP2/BPP3..(x6)..BPP2/BPP3/BPP4/BPP5..(x6)..BPP4/BPP5/BPP6/BPP7..(x6)..BPP6/BPP7
+						elsif( Max_BPP = 3 AND FSM_New_Tile = '1' ) then
 							BPP_Bit_tuser(9)				<= '0';
 							BPP_Bit_tuser(8)				<= BPP4_Previous;
 							BPP_Bit_tuser(7 downto 0)	<= BPP4_Byte;
+						-- in any other cases, next plane is BPP2
+						else
+							BPP_Bit_tuser(9)				<= '0';
+							BPP_Bit_tuser(8)				<= BPP2_Previous;
+							BPP_Bit_tuser(7 downto 0)	<= BPP2_Byte;
 						end if;
-	
+						
+
 					-- BPP4
 					when 4 =>
 						-- in 8BPP or MODE7 mode, if last decoded bit was BPP4, next plane is BBP5
@@ -414,12 +427,21 @@ begin
 						BPP_Bit_tuser(8)					<= BPP5_Previous;
 						BPP_Bit_tuser(7 downto 0)		<= BPP5_Byte;
 					
-					--BPP5
+					-- BPP5
 					when 5 => 
-						-- in 8BPP or MODE7 mode, if last decoded bit was BPP5, next plane is BBP6
-						BPP_Bit_tuser(9)					<= '0';          
-						BPP_Bit_tuser(8)					<= BPP6_Previous;
-						BPP_Bit_tuser(7 downto 0)		<= BPP6_Byte;
+						-- in 8BPP mode or MODE7, next plane is BPP6 if a tile is about to start
+						-- BPP0/BPP1..(x6)..BPP0/BPP1/BPP2/BPP3..(x6)..BPP2/BPP3/BPP4/BPP5..(x6)..BPP4/BPP5/BPP6/BPP7..(x6)..BPP6/BPP7
+						if( Max_BPP = 3 AND FSM_New_Tile = '1' ) then
+							BPP_Bit_tuser(9)				<= '0';
+							BPP_Bit_tuser(8)				<= BPP6_Previous;
+							BPP_Bit_tuser(7 downto 0)	<= BPP6_Byte;
+						-- in any other cases, next plane is BPP4
+						else
+							BPP_Bit_tuser(9)				<= '0';
+							BPP_Bit_tuser(8)				<= BPP4_Previous;
+							BPP_Bit_tuser(7 downto 0)	<= BPP4_Byte;
+						end if;
+
 						
 					-- BPP6
 					when 6 =>
@@ -430,10 +452,18 @@ begin
 	
 					-- BPP7
 					when 7 =>
-						-- in 8BPP or MODE7 mode, if last decoded bit was BPP7, next plane is BBP0
-						BPP_Bit_tuser(9)					<= '0';          
-						BPP_Bit_tuser(8)					<= BPP0_Previous;
-						BPP_Bit_tuser(7 downto 0)		<= BPP0_Byte;
+						-- in 8BPP mode or MODE7, next plane is BPP0 if a tile is about to start
+						-- BPP0/BPP1..(x6)..BPP0/BPP1/BPP2/BPP3..(x6)..BPP2/BPP3/BPP4/BPP5..(x6)..BPP4/BPP5/BPP6/BPP7..(x6)..BPP6/BPP7
+						if( Max_BPP = 3 AND FSM_New_Tile = '1' ) then
+							BPP_Bit_tuser(9)				<= '0';
+							BPP_Bit_tuser(8)				<= BPP0_Previous;
+							BPP_Bit_tuser(7 downto 0)	<= BPP0_Byte;
+						-- in any other cases, next plane is BPP6
+						else
+							BPP_Bit_tuser(9)				<= '0';
+							BPP_Bit_tuser(8)				<= BPP6_Previous;
+							BPP_Bit_tuser(7 downto 0)	<= BPP6_Byte;
+						end if;
 				end case;	
 			end if;
 		end if;
@@ -854,6 +884,9 @@ begin
 															BPP_Bit_tvalid	when MODE7_BIT_7_WAIT,
 															'0'	when others;
 	
+	-- 2BPP tile or one 8x8 mode7 tile is finished
+	FSM_New_Tile									<= FSM_Next_BPP1 when Tile_Count = 7 else Flag_MODE7_Bitplane;
+
 	-- indicates is an even or odd plane is being processed
 	with estado select
 		Cnt_Even										<= 1	when BPP1_BIT_0,

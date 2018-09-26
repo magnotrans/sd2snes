@@ -563,7 +563,7 @@ begin
 					CLK 						=> clk,
 					TRIG0(0) 				=> FIFO_rd,
 					TRIG1(0)					=> FIFO_valid,
-					TRIG2(0)					=> DMA_In_Progress,
+					TRIG2(0)					=> DMA_Conf_Valid,
 					TRIG3						=> FIFO_Data,
 					TRIG4(0)					=> Decoded_Bit_tready,
 					TRIG5						=> Decoded_Bit_tuser,

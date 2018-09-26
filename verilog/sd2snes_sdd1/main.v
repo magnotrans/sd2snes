@@ -468,7 +468,12 @@ reg sdd1_reg_enable;
 // '1' when accesing any S-DD1 register $480X or any DMA register
 always @(posedge CLK2)
 begin
-	if( MAPPER == 3'b100 )
+	if( SNES_DEADr == 1'b1 )
+		begin
+			sdd1_enable				<= 1'b0;
+			sdd1_reg_enable		<= 1'b0;
+		end
+	else if( MAPPER == 3'b100 )
 		begin
 			sdd1_enable				<= 1'b1;
 			if( SNES_ADDR[22] == 1'b0 & (SNES_ADDR[15:4] == 12'h480 | SNES_ADDR[15:0] == 16'h420B | SNES_ADDR[15:8] == 8'h43) )
@@ -506,6 +511,8 @@ wire [23:0] SDD1_RAM_ADDR = MAPPED_SNES_ADDR;
 wire FSM_End_Decompression;
 wire FSM_Avoid_Collision;
 wire FSM_DMA_Transferring;
+wire [3:0] Map_E0;
+wire [3:0] Map_F0;
 
 // implementation of S-DD1 chip
 SDD1 sdd1_snes(
@@ -524,6 +531,8 @@ SDD1 sdd1_snes(
 	.SNES_RD(SDD1_SNES_RD),
 	.SNES_WR(SDD1_SNES_WR),
 	.SNES_WR_End(SNES_WR_strobe),
+	.Map_E0(Map_E0),
+	.Map_F0(Map_F0),
 	.Avoid_Collision(FSM_Avoid_Collision),
 	.DMA_Transferring(FSM_DMA_Transferring),
 	.End_Decompress(FSM_End_Decompression)	);	
@@ -982,38 +991,26 @@ snescmd_buf snescmd (
   .doutb(snescmd_data_in_mcu) // output [7 : 0] doutb
 );
 
+//
+//
+//wire [35:0] CONTROL0;
+//
+//SNES_Scope_Ctrl ICON (
+//    .CONTROL0(CONTROL0) // INOUT BUS [35:0]
+//);
+//
+//SNES_Scope_Data ILA  (
+//    .CONTROL(CONTROL0),
+//    .CLK(CLK2),
+//	 .TRIG0(SNES_WRITE),
+//	 .TRIG1(SNES_READ),
+//	 .TRIG2(SNES_ADDR),
+//	 .TRIG3(SNES_DATA),
+//	 .TRIG4(ROM_WE),
+//	 .TRIG5(SDD1_ROM_CE),
+//	 .TRIG6(SDD1_RAM_OE),
+//	 .TRIG7(SDD1_RAM_WE),
+//	 .TRIG8(Map_E0),	 
+//	 .TRIG9(Map_F0));
 
-/*
-wire [35:0] CONTROL0;
-
-SNES_Scope_Ctrl ICON (
-    .CONTROL0(CONTROL0) // INOUT BUS [35:0]
-);
-
-SNES_Scope_Data ILA  (
-    .CONTROL(CONTROL0), // INOUT BUS [35:0]
-    .CLK(CLK2),
-	 //.CLK(CLK_SCOPE),
-	 .TRIG0(SNES_WRITE),
-	 .TRIG1(SNES_READ),
-	 .TRIG2(SDD1_ROM_CE),
-	 .TRIG3(ROM_ADDR),
-	 .TRIG4(ROM_DATA),
-	 .TRIG5(FSM_Avoid_Collision),
-	 .TRIG6(FSM_DMA_Transferring),
-	 .TRIG7(ROM_Data_tvalid),
-	 .TRIG8(SDD1_RAM_CE),
-	 .TRIG9(MCU_HIT));
-
-
-SNES_Scope_Data ILA  (
-    .CONTROL(CONTROL0),
-    .CLK(CLK_SCOPE),
-	 .TRIG0(SNES_WRITE),
-	 .TRIG1(SNES_READ),
-	 .TRIG2(SNES_ADDR),
-	 .TRIG3(SDD1_SNES_DATA_OUT),
-	 .TRIG4(FSM_DMA_Transferring),
-	 .TRIG5(FSM_End_Decompression));
-*/
 endmodule

@@ -1,7 +1,7 @@
 ##############################################################
 #
 # Xilinx Core Generator version 14.7
-# Date: Mon Sep 17 21:11:40 2018
+# Date: Wed Sep 26 19:30:00 2018
 #
 ##############################################################
 #
@@ -51,7 +51,7 @@ CSET counter_width_14=Disabled
 CSET counter_width_15=Disabled
 CSET counter_width_16=Disabled
 CSET counter_width_2=Disabled
-CSET counter_width_3=Disabled
+CSET counter_width_3=8
 CSET counter_width_4=Disabled
 CSET counter_width_5=16
 CSET counter_width_6=Disabled
@@ -138,4 +138,4 @@ CSET use_rpms=false
 MISC pkg_timestamp=2013-10-13T14:13:15Z
 # END Extra information
 GENERATE
-# CRC: 94d8f76a
+# CRC: 20f8e05f

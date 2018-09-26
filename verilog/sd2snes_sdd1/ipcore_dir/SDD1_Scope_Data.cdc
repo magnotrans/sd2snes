@@ -1,5 +1,5 @@
 #ChipScope Core Generator Project File Version 3.0
-#Mon Sep 17 23:14:19 Hora de verano romance 2018
+#Wed Sep 26 21:33:14 Hora de verano romance 2018
 SignalExport.bus<0000>.channelList=0
 SignalExport.bus<0000>.name=TRIG0
 SignalExport.bus<0000>.offset=0.0
