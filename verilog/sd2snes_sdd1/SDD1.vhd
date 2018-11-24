@@ -35,6 +35,7 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity SDD1 is
 	Port(	MCLK 									: in 	STD_LOGIC;
+      SNES_CPU_CLK            : in  STD_LOGIC;
 			RESET 								: in 	STD_LOGIC;
 			SRAM_CS 								: out STD_LOGIC;
 			SRAM_RD 								: out STD_LOGIC;
@@ -54,7 +55,8 @@ entity SDD1 is
 			Map_F0								: out STD_LOGIC_VECTOR(3 downto 0);
 			Avoid_Collision					: out STD_LOGIC;
 			DMA_Transferring					: out STD_LOGIC;
-			End_Decompress						: out STD_LOGIC	);
+			End_Decompress						: out STD_LOGIC;
+      Idle                      : out STD_LOGIC);
 end SDD1;
 
 
@@ -168,6 +170,8 @@ architecture Behavioral of SDD1 is
 	signal FSM_DMA_Transferring				: STD_LOGIC := '0';
 	signal FSM_Start_Decompression			: STD_LOGIC := '0';
 	signal FSM_End_Decompression				: STD_LOGIC := '0';
+  signal FSM_Idle                     : STD_LOGIC := '0';
+  signal FSM_Reset                    : STD_LOGIC := '0';
 	
 	signal DMA_In_Progress						: STD_LOGIC := '0';
 	signal Header_Valid							: STD_LOGIC := '0';
@@ -184,71 +188,88 @@ architecture Behavioral of SDD1 is
 	signal BPP_Bit_tuser							: STD_LOGIC_VECTOR(9 downto 0) := (others => '0');
 	signal BPP_Bit_tvalid						: STD_LOGIC := '0';
 	signal BPP_Bit_tdata							: STD_LOGIC := '0';
-	
 
 	signal SNES_RD_Pipe							: STD_LOGIC_VECTOR(1 downto 0) := "11";
 	signal ROM_ADDR_i							: STD_LOGIC_VECTOR(21 downto 0);
 	signal ROM_CS_i								: STD_LOGIC := '0';
 	
+  signal SNES_CPU_CLKr          : STD_LOGIC_VECTOR(7 downto 0) := X"FF";
+  signal SNES_cycle_start       : STD_LOGIC := '0';
+  signal SNES_cycle_end         : STD_LOGIC := '0';
+  signal Bus_Slot               : STD_LOGIC := '0';
+  signal Bus_Slot_Free          : STD_LOGIC := '0';
+
 begin
 	Map_E0											<= Bank_Map_E0;
 	Map_F0											<= Bank_Map_F0;
 	Avoid_Collision								<= FSM_Avoid_Collision;
 	DMA_Transferring								<= FSM_DMA_Transferring;
 	End_Decompress									<= FSM_End_Decompression;
+  Idle                            <= FSM_Idle;
 	
+  -- clock (edge) generation
+  -- RG support two bus slots per SNES cycle.  One typically used by the SNES and one that is always available.
+  Process( MCLK ) begin
+		if rising_edge( MCLK ) then
+      SNES_CPU_CLKr <= SNES_CPU_CLKr(6 downto 0) & SNES_CPU_CLK;
+    end if;
+  End Process;
+
+  SNES_cycle_start <= '1' when (SNES_CPU_CLKr(7 downto 2) AND SNES_CPU_CLKr(6 downto 1)) = "000011" else '0';
+  SNES_cycle_end   <= '1' when (SNES_CPU_CLKr(7 downto 2) AND SNES_CPU_CLKr(6 downto 1)) = "111000" else '0';
+  Bus_Slot         <= '1' when SNES_cycle_start = '1' OR SNES_cycle_end = '1' else '0';
+  Bus_Slot_Free    <= '1' when SNES_cycle_end = '1' else '0';
+  
 	-- decode SRAM access [$7X]:[$6000-$7FFF]; be careful with W-RAM $7E and $7F
+  -- RG acess only driven by address compare.
 	Process(SNES_ADDR, SNES_RD, SNES_WR)
 	Begin
-		if( SNES_RD = '0' OR SNES_WR = '0' ) then
-			if( SNES_ADDR(23 downto 19) = B"01110" AND SNES_ADDR(15) = '0' ) then
-				SRAM_CS								<= '0';
-				SRAM_RD								<= SNES_RD;
-				SRAM_WR								<= SNES_WR;
-			else
-				SRAM_CS								<= '1';
-				SRAM_RD								<= '1';
-				SRAM_WR								<= '1';
-			end if;
+    if( SNES_ADDR(23 downto 19) = B"01110" AND SNES_ADDR(15) = '0' ) then
+      SRAM_CS								<= '0';
+			SRAM_RD								<= SNES_RD;
+			SRAM_WR								<= SNES_WR;
 		else
-			SRAM_CS									<= '1';
-			SRAM_RD									<= '1';
-			SRAM_WR									<= '1';
+			SRAM_CS								<= '1';
+			SRAM_RD								<= '1';
+			SRAM_WR								<= '1';
 		end if;
 	End Process;
 	
 	-- decode ROM access; SNES CPU has priority over decompression core's input FIFO
 	Process( SNES_ADDR, SNES_RD, FSM_DMA_Transferring, FSM_Avoid_Collision, Curr_Src_Addr, ROM_Data_tready,
-				Bank_Map_C0, Bank_Map_D0, Bank_Map_E0, Bank_Map_F0 )
+				Bank_Map_C0, Bank_Map_D0, Bank_Map_E0, Bank_Map_F0, Bus_Slot, Bus_Slot_Free, ROM_Access_Cnt )
 	Begin
 		-- when CPU and SDD1 may collide
-		if( FSM_DMA_Transferring = '1' OR (FSM_Avoid_Collision = '1' AND SNES_RD = '1') ) then
+    -- RG allow DMA to use both slots.  Prefetch can only use the free slot.  Once an access is started, always drive the address and OE.
+    if ( ((FSM_DMA_Transferring = '1' AND Bus_Slot = '1') OR (FSM_Avoid_Collision = '1' AND Bus_Slot_Free = '1')) OR ROM_Access_Cnt /= 0) then
 			-- check which megabit is mapped onto $C0
 			if( Curr_Src_Addr(23 downto 20) = X"C" ) then
 				ROM_ADDR_i							<= Bank_Map_C0(2 downto 0) & Curr_Src_Addr(19 downto 1);
-				ROM_CS_i								<= NOT ROM_Data_tready;
-				ROM_OE								<= NOT ROM_Data_tready;
-			-- check which megabit is mapped onto $C0
+				ROM_CS_i								<= '0';
+				ROM_OE								<= '0';
+			-- check which megabit is mapped onto $D0
 			elsif( Curr_Src_Addr(23 downto 20) = X"D" ) then
 				ROM_ADDR_i								<= Bank_Map_D0(2 downto 0) & Curr_Src_Addr(19 downto 1);
-				ROM_CS_i								<= NOT ROM_Data_tready;
-				ROM_OE								<= NOT ROM_Data_tready;			
-			-- check which megabit is mapped onto $C0
+				ROM_CS_i								<= '0';
+				ROM_OE								<= '0';
+			-- check which megabit is mapped onto $E0
 			elsif( Curr_Src_Addr(23 downto 20) = X"E" ) then
 				ROM_ADDR_i								<= Bank_Map_E0(2 downto 0) & Curr_Src_Addr(19 downto 1);
-				ROM_CS_i								<= NOT ROM_Data_tready;
-				ROM_OE								<= NOT ROM_Data_tready;			
-			-- check which megabit is mapped onto $C0
+				ROM_CS_i								<= '0';
+				ROM_OE								<= '0';
+			-- check which megabit is mapped onto $F0
 			elsif( Curr_Src_Addr(23 downto 20) = X"F" ) then
 				ROM_ADDR_i								<= Bank_Map_F0(2 downto 0) & Curr_Src_Addr(19 downto 1);
-				ROM_CS_i								<= NOT ROM_Data_tready;
-				ROM_OE								<= NOT ROM_Data_tready;						
+				ROM_CS_i								<= '0';
+				ROM_OE								<= '0';
 			else
 				ROM_ADDR_i								<= Curr_Src_Addr(22 downto 1);
 				ROM_CS_i								<= '1';
 				ROM_OE								<= '1';
 			end if;
-		elsif( SNES_RD = '0' ) then
+    -- Perform non-SDD1 ROM access for SNES
+    -- RG drive ROM based only on address compares.  The timing of the ROM access and internal SNES_RD signal requires this.
+    elsif (FSM_DMA_Transferring = '0') then
 			-- Low addresses are not mapped
 			if( SNES_ADDR(22) = '0' AND SNES_ADDR(15) = '1' ) then
 				ROM_ADDR_i								<= SNES_ADDR(23 downto 16) & SNES_ADDR(14 downto 1);
@@ -279,10 +300,10 @@ begin
 				ROM_CS_i								<= '1';
 				ROM_OE								<= '1';
 			end if;
-		else
-			ROM_ADDR_i									<= SNES_ADDR(21 downto 0);
-			ROM_CS_i									<= '1';
-			ROM_OE									<= '1';			
+		--else
+		--	ROM_ADDR_i									<= SNES_ADDR(21 downto 0);
+		--	ROM_CS_i									<= '1';
+		--	ROM_OE									<= '1';			
 		end if;
 	End Process;
 
@@ -323,7 +344,7 @@ begin
 				Bank_Map_F0								<= X"3";
 				DMA_Channel_Valid						<= '0';
 				DMA_Channel_Select_Mask				<= X"00";
-				DMA_Channel_Enable					<= '0';
+				--DMA_Channel_Enable					<= '0';
 				DMA_Channel_Transfer					<= 0;
 			else
 				-- SNES bank $00 -> register $480X can be accessed from any LoROM bank
@@ -362,9 +383,9 @@ begin
 								when others => 
 									DMA_Channel_Transfer	<= 0;
 							end case;
-							if( (DMA_Channel_Select_Mask AND SNES_DATA_IN) /= X"00" ) then
-								DMA_Channel_Enable	<= '1';
-							end if;
+							--if( (DMA_Channel_Select_Mask AND SNES_DATA_IN) /= X"00" ) then
+							--	DMA_Channel_Enable	<= '1';
+							--end if;
 							
 						-- register $4804
 						when X"4" =>
@@ -383,17 +404,19 @@ begin
 							Bank_Map_F0					<= SNES_DATA_IN(3 downto 0);
 							
 						when others =>
-							DMA_Channel_Valid			<= '0';
-							DMA_Channel_Enable		<= '0';
+							--DMA_Channel_Valid			<= '0';
+							--DMA_Channel_Enable		<= '0';
 					end case;
 				else
-					DMA_Channel_Valid					<= '0';
-					DMA_Channel_Enable				<= '0';
+					--DMA_Channel_Valid					<= '0';
+					--DMA_Channel_Enable				<= '0';
 				end if;
 			end if;
 		end if;
 	End Process;
 
+  -- RG pulse enable whenever 4801 is written.  this allows it to be used for repeated decompression requests before clearing 4800.  SO does this for sprite tile transfers.  SA2 may, too.
+  DMA_Channel_Enable <= '1' when SNES_WR_End = '1' AND SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 0) = X"4801" AND (DMA_Channel_Select_Mask AND SNES_DATA_IN) /= X"00" else '0';
 	
 	-- S-DD1 READ register map
 	-- 	$4800 = x -> put S-DD1 to sniff configuration for DMA channel x from SNES address bus
@@ -412,7 +435,7 @@ begin
 				Register_Data_Out						<= X"00";
 			else
 				-- SNES bank $00 -> register $480X can be accessed from any LoROM bank
-				if( SNES_RD = '0' AND SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 4) = X"480" ) then
+				if( SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 4) = X"480" ) then
 					Register_Access					<= '1';
 					case SNES_ADDR(3 downto 0) is
 						-- register $4800 -> select the DMA channels to sniff
@@ -490,9 +513,11 @@ begin
 	Process( MCLK )
 	Begin
 		if rising_edge( MCLK ) then
-			if( FSM_Sniff_DMA_Config = '1' AND SNES_WR_End = '1' ) then
+      -- RG DMA registers may be updated at any point.  SO requires this.  the source bank was changed outside of a decompression DMA and not updated for a later decompression DMA.
+			if( --FSM_Sniff_DMA_Config = '1' AND 
+          SNES_WR_End = '1' ) then
 				-- capture source address low byte
-				if( SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 8) = X"43" AND ((DMA_Target_Register AND DMA_Channel_Select_Mask) /= X"00") ) then
+				if( SNES_ADDR(22) = '0' AND SNES_ADDR(15 downto 8) = X"43" ) then --AND ((DMA_Target_Register AND DMA_Channel_Select_Mask) /= X"00") ) then
 					if( SNES_ADDR(3 downto 0) = X"2" ) then
 						DMA_Src_Addr(DMA_Channel_Select)(7 downto 0)	<= SNES_DATA_IN;
 					end if;
@@ -540,7 +565,10 @@ begin
 						
 					-- get DMA configuration after writing to $4801
 					when GET_DMA_CONFIG =>
-						if( DMA_Channel_Enable = '1' ) then
+            -- RG either exit when $4800 is cleared or continue when $4801 is written
+            if( DMA_Channel_Valid = '0' ) then
+              estado            <= WAIT_START;
+						elsif( DMA_Channel_Enable = '1' ) then
 							estado						<= START_DECOMPRESSION;
 						end if;
 						
@@ -563,13 +591,14 @@ begin
 						
 					-- wait until all bytes have been transferred
 					when WAIT_TRANSFER_COMPLETE =>
-						if( Curr_Size = 0 ) then
+						if( Curr_Size = 0 AND SNES_RD_PIPE = "01") then
 							estado						<= END_DECOMPRESSION;
 						end if;
 						
 					-- stop decompression
 					when END_DECOMPRESSION =>
-						estado							<= WAIT_START;
+            -- RG sdd1 is allowed to continue with further writes of $4801 until $4800 is cleared.  SO does this.
+						estado							<= GET_DMA_CONFIG; --WAIT_START;
 				end case;
 			end if;
 		end if;
@@ -597,52 +626,66 @@ begin
 	-- signal core to stop decompression
 	FSM_End_Decompression							<= '1' 	when estado = END_DECOMPRESSION else '0';
 	
+	-- signal idle for memory controller
+  -- RG idle used to block MCU accesses
+	FSM_Idle            							<= '1' 	when estado = WAIT_START else '0';
+
+  -- signal reset to the fifos and decompressor
+  -- RG this needs to be held high long enough where it isn't missed.  this may still be the cause of an occasional graphics glitch when the state isn't cleared correctly.
+  with estado select
+    FSM_Reset                       <= '1' when WAIT_START,
+                                       '1' when GET_DMA_CONFIG,
+                                       '0' when others;
 
 	-- fetch data from ROM while decompressing
 	Process( MCLK )
 	Begin
 		if rising_edge(MCLK) then	
-			-- update source address
-			if( FSM_Start_Decompression = '1' ) then
-				Curr_Src_Addr							<= DMA_Src_Addr(DMA_Channel_Transfer);
-				ROM_Access_Cnt							<= 0;
-			-- after writting to $4801, SNES CPU can fetch new instructions (STA.w $420B and others), so
-			-- ROM access must be time multiplexed; when decompressing from S-DD1, ROM is fully time-
-			-- allocated to get data (after 3 master cycles)
-			elsif( (FSM_DMA_Transferring = '1') OR (FSM_Avoid_Collision = '1' AND SNES_RD = '1') ) then
-				if( ROM_Data_tready = '1' ) then
-					-- when ROM's access time finish, get data and increment source address
-					if( ROM_Access_Cnt = ROM_ACCESS_CYCLES-1 ) then
-						ROM_Access_Cnt					<= 0;
-						-- if source address is odd, tkeep is "10" to register upper byte and source address
-						-- is incremented by 1 to align source address
-						if( Curr_Src_Addr(0) = '1' ) then
-							Curr_Src_Addr				<= Curr_Src_Addr + 1;
-						else
-							Curr_Src_Addr				<= Curr_Src_Addr + 2;
-						end if;
-					else
-						ROM_Access_Cnt					<= ROM_Access_Cnt + 1;
-					end if;
-				else
-					ROM_Access_Cnt						<= 0;
-				end if;
-			else
-				ROM_Access_Cnt							<= 0;
-			end if;
+      if (RESET = '0') then
+        ROM_Access_Cnt <= 0;
+      else
+        -- update source address
+        if( FSM_Start_Decompression = '1' ) then
+          Curr_Src_Addr							<= DMA_Src_Addr(DMA_Channel_Transfer);
+          ROM_Access_Cnt							<= 0;
+        -- after writting to $4801, SNES CPU can fetch new instructions (STA.w $420B and others), so
+        -- ROM access must be time multiplexed; when decompressing from S-DD1, ROM is fully time-
+        -- allocated to get data (after 3 master cycles)
+        
+        -- RG only allow accesses during available bus slots.  if a prior access is outstanding then always continue.
+        elsif( ROM_Access_Cnt /= 0 OR (((FSM_DMA_Transferring = '1' AND Bus_Slot = '1') OR (FSM_Avoid_Collision = '1' AND Bus_Slot_Free = '1')) AND ROM_Data_tready = '1')) then
+          -- when ROM's access time finish, get data and increment source address
+          if( ROM_Access_Cnt = ROM_ACCESS_CYCLES-1 ) then
+            ROM_Access_Cnt					<= 0;
+            -- if source address is odd, tkeep is "10" to register upper byte and source address
+            -- is incremented by 1 to align source address
+            if( Curr_Src_Addr(0) = '1' ) then
+              Curr_Src_Addr				<= Curr_Src_Addr + 1;
+            else
+              Curr_Src_Addr				<= Curr_Src_Addr + 2;
+            end if;
+            
+          else
+            ROM_Access_Cnt					<= ROM_Access_Cnt + 1;
+          end if;
+        else
+          ROM_Access_Cnt							<= 0;
+        end if;
+      end if;
+      
 		end if;	
 	End Process;
 	
 	-- in the third read cycle, data is registered on the FIFO
 	ROM_Data_tvalid									<= '1' when (FSM_DMA_Transferring = '1' AND ROM_Access_Cnt = (ROM_ACCESS_CYCLES-1) ) else
-																'1' when (FSM_Avoid_Collision = '1' AND SNES_RD = '1' AND ROM_Access_Cnt = (ROM_ACCESS_CYCLES-1) ) else
+																'1' when (FSM_Avoid_Collision = '1' AND ROM_Access_Cnt = (ROM_ACCESS_CYCLES-1) ) else
 	 															'0';
+
 	-- if start address is odd, just register upper byte
 	ROM_Data_tkeep										<= "10" when Curr_Src_Addr(0) = '1' else "11";
-	-- data for decompression is always 16 bits
-	ROM_Data_tdata										<= ROM_DATA;
-	
-
+  -- data for decompression is always 16 bits
+  ROM_Data_tdata				        <= ROM_DATA;
+                                
 	-- get data from ROM and decode it into N-order Golomb runs
 	IM : Input_Manager
 		Port map(clk 									=> MCLK,
@@ -692,7 +735,7 @@ begin
 		Port map(clk 									=> MCLK,
 					-- configuration received from DMA
 					DMA_In_Progress					=> DMA_In_Progress,
-					DMA_Transfer_End					=> FSM_End_Decompression,
+					DMA_Transfer_End					=> FSM_Reset, --FSM_End_Decompression, -- RG use longer reset to make sure everything clears.
 					Header_Valid						=> Header_Valid,
 					Header_BPP							=> Header_BPP,
 					-- data input from Probability Estimator
@@ -708,13 +751,16 @@ begin
 	
 	-- tri-State Buffer control
 	SNES_DATA_OUT										<= DMA_Data_out 		when (FSM_DMA_Transferring = '1') else 
-																Register_Data_Out	when (SNES_RD = '0' AND Register_Access = '1') else
+																Register_Data_Out	when (Register_Access = '1') else
 																ROM_Data_Byte;
 					
 	-- send data to SNES while decompressing using DMA
 	Process( MCLK )
 	Begin
 		if rising_edge(MCLK) then
+      if (RESET = '0') then
+        DMA_Data_tready <= '0';
+      else
 			-- register rising edge in SNES_RD from CPU
 			SNES_RD_Pipe								<= SNES_RD_Pipe(0) & SNES_RD;
 
@@ -739,6 +785,8 @@ begin
 				DMA_Data_out							<= DMA_Data_tdata;
 				Curr_Size								<= Curr_Size - 1;
 			end if;
+      end if;
 		end if;	
-	End Process; 
+	End Process;
+    
 end Behavioral;

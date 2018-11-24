@@ -214,10 +214,11 @@ void smc_id(snes_romprops_t* props) {
       }
       /* S-DD1 */
       else if(header->carttype == 0x43 || header->carttype == 0x45) {
+        props->mapper_id = 4;
         props->has_sdd1 = 1;
         //props->error = MENU_ERR_NOIMPL;
         //props->error_param = (uint8_t*)"S-DD1";
-		props->fpga_conf = FPGA_SDD1;
+        props->fpga_conf = FPGA_SDD1;
       }
       /* Standard ExLoROM */
       else {

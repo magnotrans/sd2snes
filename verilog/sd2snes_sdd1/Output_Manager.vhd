@@ -546,6 +546,9 @@ begin
 	Process( clk )
 	Begin
 		if rising_edge( clk ) then
+      if (DMA_Transfer_End = '1') then
+        estado <= WAIT_HEADER;
+      else
 			case estado is
 				-- wait until header is read from input
 				when WAIT_HEADER =>
@@ -855,6 +858,7 @@ begin
 						estado						<= MODE7_BIT_0;
 					end if;
 			end case;
+      end if;
 		end if;
 		
 	End Process;
