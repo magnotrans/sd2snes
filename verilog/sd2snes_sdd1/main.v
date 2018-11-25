@@ -287,7 +287,7 @@ parameter ST_MCU_RD_END  = 5'b00100;
 parameter ST_MCU_WR_ADDR = 5'b01000;
 parameter ST_MCU_WR_END  = 5'b10000;
 
-parameter SNES_DEAD_TIMEOUT = 17'd96000; // 1ms
+parameter SNES_DEAD_TIMEOUT = 18'd96000; // 1ms
 
 parameter ROM_CYCLE_LEN = 4'd7;
 
@@ -495,10 +495,12 @@ wire SDD1_RAM_WE;
 wire [7:0] SDD1_SNES_DATA_OUT;
 // when reading from PSRAM, 16-bit width read is performed from S-DD1 core
 //wire [15:0] SDD1_ROM_DATA = (sdd1_enable & ~SDD1_ROM_CE)?{ROM_DATA[7:0], ROM_DATA[15:8]}:16'h0000;
-wire [15:0] SDD1_ROM_DATA = {ROM_DATA[7:0], ROM_DATA[15:8]};
+reg  [15:0] SDD1_ROM_DATA;
 wire [21:0] SDD1_ROM_ADDR;
 wire [23:0] SDD1_SNES_ADDR;
 wire [7:0] SDD1_SNES_DATA_IN;
+
+always @(posedge CLK2) if (sdd1_enable & ~SDD1_ROM_CE) SDD1_ROM_DATA <= {ROM_DATA[7:0], ROM_DATA[15:8]};
 
 assign SDD1_SNES_ADDR = SNES_ADDR;
 assign SDD1_SNES_DATA_IN = BUS_DATA;
@@ -518,6 +520,8 @@ wire [3:0] Map_F0;
 SDD1 sdd1_snes(
 	.MCLK(CLK2),
   .SNES_CPU_CLK(SNES_CPU_CLK_IN),
+  .SNES_ROMSEL(SNES_ROMSEL),
+  .SNES_REFRESH(SNES_REFRESH),
 	.RESET(sdd1_enable),
 	.SRAM_CS(SDD1_RAM_CE),
 	.SRAM_RD(SDD1_RAM_OE),
@@ -823,7 +827,7 @@ end
 
 always @(posedge CLK2) begin
   if(~SNES_CPU_CLKr[1]) SNES_DEAD_CNTr <= SNES_DEAD_CNTr + 1;
-  else SNES_DEAD_CNTr <= 17'h0;
+  else SNES_DEAD_CNTr <= 18'h0;
 end
 
 always @(posedge CLK2) begin
@@ -963,7 +967,7 @@ assign ROM_BLE = (sdd1_enable & ~SDD1_ROM_CE)?1'b0:!ROM_ADDR0;
 // active low signal to enable level converters' output; it enables output in both sides of the chip
 assign SNES_DATABUS_OE = msu_enable ? 1'b0 :
                          snescmd_enable ? (~(snescmd_unlock | feat_cmd_unlock) | (SNES_READ & SNES_WRITE)) :
-                         (sdd1_reg_enable | sdd1_snoop_enable) ? 1'b0 :
+                         (sdd1_reg_enable | (sdd1_snoop_enable & ~SNES_WRITE)) ? 1'b0 :
                          (r213f_enable & ~SNES_PARD) ? 1'b0 :
                          (r2100_enable & ~SNES_PAWR) ? 1'b0 :
                          snoop_4200_enable ? SNES_WRITE :
