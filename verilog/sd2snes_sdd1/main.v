@@ -495,12 +495,10 @@ wire SDD1_RAM_WE;
 wire [7:0] SDD1_SNES_DATA_OUT;
 // when reading from PSRAM, 16-bit width read is performed from S-DD1 core
 //wire [15:0] SDD1_ROM_DATA = (sdd1_enable & ~SDD1_ROM_CE)?{ROM_DATA[7:0], ROM_DATA[15:8]}:16'h0000;
-reg  [15:0] SDD1_ROM_DATA;
+wire [15:0] SDD1_ROM_DATA = {ROM_DATA[7:0], ROM_DATA[15:8]};
 wire [21:0] SDD1_ROM_ADDR;
 wire [23:0] SDD1_SNES_ADDR;
 wire [7:0] SDD1_SNES_DATA_IN;
-
-always @(posedge CLK2) if (sdd1_enable & ~SDD1_ROM_CE) SDD1_ROM_DATA <= {ROM_DATA[7:0], ROM_DATA[15:8]};
 
 assign SDD1_SNES_ADDR = SNES_ADDR;
 assign SDD1_SNES_DATA_IN = BUS_DATA;
@@ -520,7 +518,6 @@ wire [3:0] Map_F0;
 SDD1 sdd1_snes(
 	.MCLK(CLK2),
   .SNES_CPU_CLK(SNES_CPU_CLK_IN),
-  .SNES_ROMSEL(SNES_ROMSEL),
   .SNES_REFRESH(SNES_REFRESH),
 	.RESET(sdd1_enable),
 	.SRAM_CS(SDD1_RAM_CE),
@@ -924,34 +921,35 @@ always @(posedge CLK2) MCU_WRITE_1<= MCU_WRITE;
 assign ROM_DATA[7:0] = ROM_ADDR0 ? 
 								// if ROM_ADDR[0] = '1'
 								(SD_DMA_TO_ROM ? (!MCU_WRITE_1 ? MCU_DOUT : 8'bZ)
+									: MCU_WR_HIT ? MCU_DOUT
 									// if S-DD1 is present, only writes to PSRAM if game is storing in backup SRAM;
 									// if reading from PSRAM, the bus is tri-state
 									: (sdd1_enable & ~SDD1_RAM_CE) ? ((~SDD1_RAM_WE) ? SNES_DATA : 8'bZ )
 									: (sdd1_enable & ~SDD1_ROM_CE) ? 8'bZ
 									// if writing to ROM, backup RAM or BS-X RAM (all stored in PSRAM)
 									: (ROM_HIT & ~SNES_WRITE) ? SNES_DATA 
-									: MCU_WR_HIT ? MCU_DOUT : 8'bZ )
+                  : 8'bZ )
 								// if ROM_ADDR[0] = '0'
 								:8'bZ;
 
 assign ROM_DATA[15:8] = ROM_ADDR0 ? 8'bZ
 									// if ROM_ADDR[0] = '0'
 									: (SD_DMA_TO_ROM ? (!MCU_WRITE_1 ? MCU_DOUT : 8'bZ)
+									: MCU_WR_HIT ? MCU_DOUT
 									// if S-DD1 is present, only writes to PSRAM if game is storing in backup SRAM
 									// if reading from PSRAM, the bus is tri-state
 									: (sdd1_enable & ~SDD1_RAM_CE) ? ((~SDD1_RAM_WE) ? SNES_DATA : 8'bZ )
 									: (sdd1_enable & ~SDD1_ROM_CE) ? 8'bZ
 									// if writing to ROM, backup RAM or BS-X RAM (all stored in PSRAM)
 									: (ROM_HIT & ~SNES_WRITE) ? SNES_DATA
-									: MCU_WR_HIT ? MCU_DOUT
                            : 8'bZ );
 
 
 // write enable for PSRAM; for S-DD1, enabled when accessing backup SRAM for writing
 assign ROM_WE = SD_DMA_TO_ROM?MCU_WRITE
+           : MCU_WR_HIT ? 1'b0
 					 : (sdd1_enable & ~SDD1_RAM_CE) ? SDD1_RAM_WE
 					 : (ROM_HIT & IS_WRITABLE & SNES_CPU_CLK) ? SNES_WRITE
-                : MCU_WR_HIT ? 1'b0
 					 : 1'b1;
 
 // OE always active. Overridden by WE when needed.
@@ -960,9 +958,9 @@ assign ROM_CE = 1'b0;
 
 // byte selector for PSRAM output; when S-DD1 is reading from ROM (PSRAM), access is 16bit wide
 // '0' when accessing high byte
-assign ROM_BHE = (sdd1_enable & ~SDD1_ROM_CE)?1'b0:ROM_ADDR0;
+assign ROM_BHE = (sdd1_enable & ~SDD1_ROM_CE & ~MCU_HIT)?1'b0:ROM_ADDR0;
 // '0' when accessing low byte
-assign ROM_BLE = (sdd1_enable & ~SDD1_ROM_CE)?1'b0:!ROM_ADDR0;
+assign ROM_BLE = (sdd1_enable & ~SDD1_ROM_CE & ~MCU_HIT)?1'b0:!ROM_ADDR0;
 
 // active low signal to enable level converters' output; it enables output in both sides of the chip
 assign SNES_DATABUS_OE = msu_enable ? 1'b0 :

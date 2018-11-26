@@ -36,7 +36,6 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 entity SDD1 is
 	Port(	MCLK									: in	STD_LOGIC;
 			SNES_CPU_CLK							: in	STD_LOGIC;
-			SNES_ROMSEL							: in	STD_LOGIC;
 			SNES_REFRESH							: in	STD_LOGIC;
 			RESET								: in	STD_LOGIC;
 			SRAM_CS									: out STD_LOGIC;
@@ -198,7 +197,6 @@ architecture Behavioral of SDD1 is
 	signal SNES_CPU_CLKr		: STD_LOGIC_VECTOR(7 downto 0) := X"00";
 	signal SNES_Cycle_Start		: STD_LOGIC := '0';
 	signal SNES_Cycle_End		: STD_LOGIC := '0';
-	signal SNES_Romsel_Pipe		: STD_LOGIC := '0';
 	signal SNES_Refresh_Pipe	: STD_LOGIC_VECTOR(1 downto 0) := "00";
 	signal Bus_Slot_Free		: STD_LOGIC := '0';
 	signal DMA_Src_Match		: STD_LOGIC := '0';
@@ -216,7 +214,7 @@ begin
 	Process( MCLK ) begin
 		if rising_edge( MCLK ) then
 		  -- RG free slot always available.	 main blocks MCU during active S-DD1.
-		  -- SNES slot is available during a Src Match (DMA), if SNES isn't accessing ROM during prefetch, or during refresh to provide more bandwidth.
+		  -- SNES slot is available during a Src Match (DMA) or during refresh to provide more bandwidth.
 		  -- refresh seemed to fix the glitches.  SO (JP) was randomly corrupting the New Game screen whenever a refresh happened right after a $4801 <- 1 write.
 		  -- This left 1-2 free slots before the dead SNES_cycles which caused a problem.  does the decompressor require some number of bytes to always be available
 		  -- during a fixed period prior to DMA start?	this also fixed other glitches in SO and SFA.
@@ -224,10 +222,9 @@ begin
 		  -- to reproduce the problem remove the Refresh term and toggle New Game (A button) then back (B button) repeatedly until there is a longer pause and graphics glitch on SO (JP).
 		  -- the byte that fails is the 7th decompressed byte from $FE5CF0 (should be $58, but is actually $78) on the transition to the New Game screen.
 		  -- this is a DMA to WRAM $7F2800.	 $7F2000/$2800 are used as some sort of lookup table and the corruption causes the SNES to execute incorrectly (but not crash most of the time).
-		  Bus_Slot_Free	   <= SNES_Cycle_End OR (SNES_Cycle_Start AND (DMA_Src_Match OR (FSM_Avoid_Collision AND SNES_Romsel_Pipe))) OR (SNES_Refresh_Pipe(1) XOR SNES_Refresh_Pipe(0));
+		  Bus_Slot_Free	   <= SNES_Cycle_End OR (SNES_Cycle_Start AND DMA_Src_Match) OR (SNES_Refresh_Pipe(1) XOR SNES_Refresh_Pipe(0));
 		  SNES_CPU_CLKr <= SNES_CPU_CLKr(6 downto 0) & SNES_CPU_CLK;
 		  SNES_Refresh_Pipe <= SNES_Refresh_Pipe(0) & SNES_REFRESH;
-		  SNES_Romsel_Pipe <= SNES_ROMSEL;
 		end if;
 	End Process;
 
@@ -239,7 +236,7 @@ begin
 	-- RG access only driven by address compare.
 	Process(SNES_ADDR, SNES_RD, SNES_WR)
 	Begin
-		if( SNES_ADDR(23 downto 19) = B"01110" AND SNES_ADDR(15) = '0' ) then
+		if( SNES_ADDR(23 downto 19) = B"01110" AND SNES_ADDR(15 downto 13) = "011" ) then
 			SRAM_CS								<= '0';
 			SRAM_RD								<= SNES_RD;
 			SRAM_WR								<= SNES_WR;
