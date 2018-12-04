@@ -78,8 +78,8 @@ wire [23:0] SRAM_SNES_ADDR;
 // active high to select ROM when
 						// bank is in range ($00-$3F) or ($80-$BF) and accessing upper half of bank ($8000-$FFFF) (LoROM)
 assign IS_ROM = 	((!SNES_ADDR[22] & SNES_ADDR[15])
-						// bank is in range ($C0-$FF) or ($40-$7F)
-						|(SNES_ADDR[22]));
+						  // bank is in range ($C0-$FF) or ($40-$7D).  Avoid WRAM $7E-$7F
+						  |     (SNES_ADDR[22] && SNES_ADDR[23:18] != 6'h1F));
 
 // select backup RAM when
 							// ST0010 chip is present, SRAM is mapped to
@@ -87,7 +87,7 @@ assign IS_SAVERAM = SAVERAM_MASK[0]&(featurebits[FEAT_ST0010]?((SNES_ADDR[22:19]
 							// for HiROM, ExtHIROM or interleaved StarOcean -> $3X:[$6000-$7FFF] or $BX:[$6000-$7FFF]
 							:((MAPPER == 3'b000 || MAPPER == 3'b010 || MAPPER == 3'b110) ? (!SNES_ADDR[22] & SNES_ADDR[21] & &SNES_ADDR[14:13] & !SNES_ADDR[15])
 							// for ExtLoROM -> $7X:[$6000-$7FFF]
-							:(MAPPER == 3'b100) ? ((SNES_ADDR[23:19] == 5'b01110) & (SNES_ADDR[15:13] == 3'b011))
+							:(MAPPER == 3'b100) ? ((SNES_ADDR[23:19] == 5'b01110) && (SNES_ADDR[15:13] == 3'b011))
 							// LoROM:   SRAM @ Bank 0x70-0x7d, 0xf0-0xff
 							// Offset 0000-7fff for ROM >= 32 MBit, otherwise 0000-ffff
 							:(MAPPER == 3'b001)? (&SNES_ADDR[22:20] & (~SNES_ROMSEL) & (~SNES_ADDR[15] | ~ROM_MASK[21]))
