@@ -133,7 +133,7 @@ void UART_HANDLER(void) {
         }
       }
       break;
-      
+
     case 12: /* RX timeout */
     case  4: /* data received - not implemented yet */
       (void) UART_REGS->RBR; // dummy read to clear
@@ -238,8 +238,15 @@ void uart_puthex(uint8_t num) {
     uart_putc('a'+tmp-10);
 }
 
-void uart_trace(void *ptr, uint16_t start, uint16_t len) {
-  uint16_t i;
+void uart_puts_hex(const char *text) {
+  while (*text) {
+    uart_puthex(*text++);
+    uart_putc(' ');
+  }
+}
+
+void uart_trace(void *ptr, uint32_t start, uint32_t len) {
+  uint32_t i;
   uint8_t j;
   uint8_t ch;
   uint8_t *data = ptr;
@@ -247,6 +254,7 @@ void uart_trace(void *ptr, uint16_t start, uint16_t len) {
   data+=start;
   for(i=0;i<len;i+=16) {
 
+    uart_puthex(start>>16);
     uart_puthex(start>>8);
     uart_puthex(start&0xff);
     uart_putc('|');

@@ -1,21 +1,21 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date:    19:19:08 12/01/2010 
-// Design Name: 
-// Module Name:    sd_dma 
-// Project Name: 
-// Target Devices: 
-// Tool versions: 
-// Description: 
+// Company:
+// Engineer:
 //
-// Dependencies: 
+// Create Date:    19:19:08 12/01/2010
+// Design Name:
+// Module Name:    sd_dma
+// Project Name:
+// Target Devices:
+// Tool versions:
+// Description:
 //
-// Revision: 
+// Dependencies:
+//
+// Revision:
 // Revision 0.01 - File Created
-// Additional Comments: 
+// Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
 module sd_dma(
@@ -32,7 +32,7 @@ module sd_dma(
   input [10:0] SD_DMA_PARTIAL_END,
   input SD_DMA_START_MID_BLOCK,
   input SD_DMA_END_MID_BLOCK,
-  
+
   output [10:0] DBG_cyclecnt,
   output [2:0] DBG_clkcnt
 );
@@ -59,6 +59,8 @@ wire SD_DMA_EN_rising = (SD_DMA_ENr [1:0] == 2'b01);
 reg SD_DMA_STATUSr;
 assign SD_DMA_STATUS = SD_DMA_STATUSr;
 
+reg SD_DMA_CLKMASKr = 1'b1;
+
 // we need 1042 cycles (startbit + 1024 nibbles + 16 crc + stopbit)
 reg [10:0] cyclecnt;
 initial cyclecnt = 11'd0;
@@ -82,7 +84,7 @@ always @(posedge CLK)
   if(SD_DMA_EN_rising) SD_CLKr <= 3'b111;
   else SD_CLKr <= {SD_CLKr[0], clkcnt[1]};
 
-assign SD_CLK = SD_DMA_STATUSr ? SD_CLKr[1] : 1'bZ;
+assign SD_CLK = SD_DMA_CLKMASKr ? 1'bZ : SD_CLKr[1];
 
 always @(posedge CLK) begin
   if(SD_DMA_EN_rising) begin
@@ -93,6 +95,14 @@ always @(posedge CLK) begin
   else if (SD_DMA_DONE_rising) SD_DMA_STATUSr <= 1'b0;
 end
 
+always @(posedge CLK) begin
+  if(SD_DMA_EN_rising) begin
+    SD_DMA_CLKMASKr <= 1'b0;
+  end
+  else if (SD_DMA_DONEr) begin
+    SD_DMA_CLKMASKr <= 1'b1;
+  end
+end
 always @(posedge CLK) begin
   if(cyclecnt == 1042
      || ((SD_DMA_END_MID_BLOCK & SD_DMA_PARTIALr) && cyclecnt == SD_DMA_PARTIAL_END))
@@ -111,7 +121,7 @@ always @(posedge CLK) begin
 end
 
 always @(posedge CLK) begin
-  if(SD_DMA_EN_rising) 
+  if(SD_DMA_EN_rising)
     cyclecnt <= (SD_DMA_PARTIALr && SD_DMA_START_MID_BLOCK) ? SD_DMA_PARTIAL_START : 0;
   else if(!SD_DMA_STATUSr) cyclecnt <= 0;
   else if(clkcnt[1:0] == 2'b10) cyclecnt <= cyclecnt + 1;
@@ -128,7 +138,7 @@ always @(posedge CLK) begin
       end
       3'h1: begin
         SD_DMA_NEXTADDRr <= 1'b0;
-		end
+    end
       3'h2: if(cyclecnt>=SD_DMA_STARTr && cyclecnt < SD_DMA_ENDr) SD_DMA_SRAM_WEr <= 1'b0;
 //  3'h3:
       3'h4:
@@ -136,7 +146,7 @@ always @(posedge CLK) begin
 //  3'h5:
 //  3'h6:
       3'h7:
-		  SD_DMA_SRAM_WEr <= 1'b1;
+        SD_DMA_SRAM_WEr <= 1'b1;
     endcase
   end
 end

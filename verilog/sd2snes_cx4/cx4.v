@@ -1,21 +1,21 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date:    23:14:37 10/13/2011 
-// Design Name: 
-// Module Name:    cx4 
-// Project Name: 
-// Target Devices: 
-// Tool versions: 
-// Description: 
+// Company:
+// Engineer:
 //
-// Dependencies: 
+// Create Date:    23:14:37 10/13/2011
+// Design Name:
+// Module Name:    cx4
+// Project Name:
+// Target Devices:
+// Tool versions:
+// Description:
 //
-// Revision: 
+// Dependencies:
+//
+// Revision:
 // Revision 0.01 - File Created
-// Additional Comments: 
+// Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
 module cx4(
@@ -24,23 +24,22 @@ module cx4(
   input [12:0] ADDR,
   input CS,
   input SNES_VECT_EN,
-  input nRD,
-  input nWR,
+  input reg_we_rising,
   input CLK,
-  input [23:0] DATROM_DI,
-  input DATROM_WE,
-  input [9:0] DATROM_ADDR,
   input [7:0] BUS_DI,
   output [23:0] BUS_ADDR,
   output BUS_RRQ,
   input BUS_RDY,
-  output cx4_active
+  output cx4_active,
+  output [2:0] cx4_busy_out,
+  input speed
 );
 
 reg [2:0] cx4_busy;
 parameter BUSY_CACHE = 2'b00;
 parameter BUSY_DMA   = 2'b01;
 parameter BUSY_CPU   = 2'b10;
+assign cx4_busy_out = cx4_busy;
 
 wire datram_enable = CS & (ADDR[11:0] < 12'hc00);
 wire mmio_enable = CS & (ADDR[12:5] == 8'b11111010) & (ADDR[4:0] < 5'b10011);
@@ -80,7 +79,7 @@ reg        cx4_mmio_r1f52;
 assign cx4_active = |cx4_busy;
 /* 0x1f60 - 0x1f7f: reset vectors */
 reg  [7:0] vector [31:0];
-/* 0x1f80 - 0x1faf (0x1fc0 - 0x1fef): general purpose register file 
+/* 0x1f80 - 0x1faf (0x1fc0 - 0x1fef): general purpose register file
    SNES: 8 bits / CX4: 24 bits */
 reg  [7:0] gpr [47:0];
 wire [47:0] cpu_mul_result;
@@ -107,7 +106,7 @@ initial begin
   cpu_cache_cachepage = 1'b0;
   cpu_cache_done = 1'b0;
   cachetag[0] = 14'h0000;
-  cachetag[1] = 14'h0000;  
+  cachetag[1] = 14'h0000;
   cachevalid = 2'b00;
   cx4_busy = 3'b000;
   cx4_mmio_pgmoff = 24'h000000;
@@ -148,20 +147,10 @@ assign VECTOR_DO = vector [ADDR[4:0]];
 assign GPR_DO = gpr [ADDR[5:0]];
 assign STATUS_DO = {1'b0, cx4_active, 4'b0000, ~cx4_active, 1'b0};
 
-reg [7:0] DIr;
-always @(posedge CLK) DIr <= DI;
-
-reg [4:0] datram_enable_sreg;
-initial datram_enable_sreg = 5'b11111;
-always @(posedge CLK) datram_enable_sreg <= {datram_enable_sreg[3:0], datram_enable};
-
-reg [5:0] nWR_sreg;
-always @(posedge CLK) nWR_sreg <= {nWR_sreg[4:0], nWR};
-wire WR_EN = (nWR_sreg[5:0] == 6'b000001);
-wire DATRAM_WR_EN = datram_enable & WR_EN;
-wire MMIO_WR_EN = mmio_enable & WR_EN;
-wire VECTOR_WR_EN = vector_enable & WR_EN;
-wire GPR_WR_EN = gpr_enable & WR_EN;
+wire DATRAM_WR_EN = datram_enable & reg_we_rising;
+wire MMIO_WR_EN = mmio_enable & reg_we_rising;
+wire VECTOR_WR_EN = vector_enable & reg_we_rising;
+wire GPR_WR_EN = gpr_enable & reg_we_rising;
 
 reg [23:0] cpu_idb; // tmp register for reg file read
 
@@ -243,33 +232,33 @@ end
 always @(posedge CLK) begin
   if(MMIO_WR_EN) begin
     case(ADDR[4:0])
-      5'h00: cx4_mmio_dmasrc[7:0] <= DIr;   // 1f40
-      5'h01: cx4_mmio_dmasrc[15:8] <= DIr;  // 1f41
-      5'h02: cx4_mmio_dmasrc[23:16] <= DIr; // 1f42
-      5'h03: cx4_mmio_dmalen[7:0] <= DIr;   // 1f43
-      5'h04: cx4_mmio_dmalen[15:8] <= DIr;  // 1f44
-      5'h05: cx4_mmio_dmatgt[7:0] <= DIr;   // 1f45
-      5'h06: cx4_mmio_dmatgt[15:8] <= DIr;  // 1f46
+      5'h00: cx4_mmio_dmasrc[7:0] <= DI;   // 1f40
+      5'h01: cx4_mmio_dmasrc[15:8] <= DI;  // 1f41
+      5'h02: cx4_mmio_dmasrc[23:16] <= DI; // 1f42
+      5'h03: cx4_mmio_dmalen[7:0] <= DI;   // 1f43
+      5'h04: cx4_mmio_dmalen[15:8] <= DI;  // 1f44
+      5'h05: cx4_mmio_dmatgt[7:0] <= DI;   // 1f45
+      5'h06: cx4_mmio_dmatgt[15:8] <= DI;  // 1f46
       5'h07: begin
-        cx4_mmio_dmatgt[23:16] <= DIr; // 1f47
+        cx4_mmio_dmatgt[23:16] <= DI; // 1f47
         DMA_TRIG_ENr <= 1'b1;
       end
       5'h08: begin
-        cx4_mmio_cachepage <= DIr[0];  // 1f48
+        cx4_mmio_cachepage <= DI[0];  // 1f48
         CACHE_TRIG_ENr <= 1'b1;
       end
-      5'h09: cx4_mmio_pgmoff[7:0] <= DIr;   // 1f49
-      5'h0a: cx4_mmio_pgmoff[15:8] <= DIr;  // 1f4a
-      5'h0b: cx4_mmio_pgmoff[23:16] <= DIr; // 1f4b
+      5'h09: cx4_mmio_pgmoff[7:0] <= DI;   // 1f49
+      5'h0a: cx4_mmio_pgmoff[15:8] <= DI;  // 1f4a
+      5'h0b: cx4_mmio_pgmoff[23:16] <= DI; // 1f4b
       5'h0c: begin
-        cx4_mmio_savepage <= DIr[1:0];
-        if(DIr[0]) cx4_mmio_pagemem[0] <= cx4_mmio_pgmpage;
-        if(DIr[1]) cx4_mmio_pagemem[1] <= cx4_mmio_pgmpage;
+        cx4_mmio_savepage <= DI[1:0];
+        if(DI[0]) cx4_mmio_pagemem[0] <= cx4_mmio_pgmpage;
+        if(DI[1]) cx4_mmio_pagemem[1] <= cx4_mmio_pgmpage;
       end
-      5'h0d: cx4_mmio_pgmpage[7:0] <= DIr;  // 1f4d
-      5'h0e: cx4_mmio_pgmpage[14:8] <= DIr[6:0];   // 1f4e
+      5'h0d: cx4_mmio_pgmpage[7:0] <= DI;  // 1f4d
+      5'h0e: cx4_mmio_pgmpage[14:8] <= DI[6:0];   // 1f4e
       5'h0f: begin
-        cx4_mmio_pc <= DIr;  // 1f4f
+        cx4_mmio_pc <= DI;  // 1f4f
         if(cx4_mmio_savepage[0]
            && cx4_mmio_pagemem[0] == cx4_mmio_pgmpage)
           cx4_mmio_cachepage <= 1'b0;
@@ -278,9 +267,9 @@ always @(posedge CLK) begin
           cx4_mmio_cachepage <= 1'b1;
         cpu_go_en_r <= 1'b1;
       end
-      5'h10: cx4_mmio_r1f50 <= DIr & 8'h77; // 1f50
-      5'h11: cx4_mmio_r1f51 <= DIr[0];      // 1f51
-      5'h12: cx4_mmio_r1f52 <= DIr[0];      // 1f52
+      5'h10: cx4_mmio_r1f50 <= DI & 8'h77; // 1f50
+      5'h11: cx4_mmio_r1f51 <= DI[0];      // 1f51
+      5'h12: cx4_mmio_r1f52 <= DI[0];      // 1f52
     endcase
   end else begin
     CACHE_TRIG_ENr <= 1'b0;
@@ -288,9 +277,9 @@ always @(posedge CLK) begin
     cpu_go_en_r <= 1'b0;
   end
 end
-  
+
 always @(posedge CLK) begin
-  if(VECTOR_WR_EN) vector[ADDR[4:0]] <= DIr;
+  if(VECTOR_WR_EN) vector[ADDR[4:0]] <= DI;
 end
 
 reg [4:0] CACHE_ST;
@@ -328,13 +317,13 @@ initial cache_count = 20'b0;
 always @(posedge CLK) begin
   case(CACHE_ST)
     ST_CACHE_IDLE: begin
-      if(CACHE_TRIG_EN 
+      if(CACHE_TRIG_EN
          & (~cachevalid[cx4_mmio_cachepage]
             | |(cachetag[cx4_mmio_cachepage] ^ cx4_mmio_pgmpage))) begin
         CACHE_ST <= ST_CACHE_START;
         cache_pgmpage <= cx4_mmio_pgmpage;
         cache_cachepage <= cx4_mmio_cachepage;
-		  cx4_busy[BUSY_CACHE] <= 1'b1;
+        cx4_busy[BUSY_CACHE] <= 1'b1;
       end else if(cpu_cache_en
          & (~cachevalid[~cpu_page]
             | |(cachetag[~cpu_page] ^ cpu_p))) begin
@@ -446,7 +435,8 @@ reg [23:0] cpu_romaddr;
 reg [23:0] cpu_ramaddr;
 reg [23:0] cpu_acch;
 reg [23:0] cpu_accl;
-reg [23:0] cpu_mul_src;
+reg [23:0] cpu_mul_a;
+reg [23:0] cpu_mul_b;
 reg [24:0] cpu_alu_res;
 reg [23:0] cpu_dummy;
 reg [23:0] cpu_tmp;
@@ -486,6 +476,8 @@ parameter OP_CMP   = 5'b01110;
 parameter OP_SEX   = 5'b01111;
 parameter OP_HLT   = 5'b10000;
 
+parameter MUL_DELAY = 3'h2;
+
 wire [6:0] op_id = cpu_op_w[15:10];
 reg [7:0] op_param;
 reg [4:0] op;
@@ -495,6 +487,7 @@ reg op_p;
 reg op_call;
 reg op_jump;
 reg condtrue;
+reg mul_strobe = 0;
 
 always @(posedge CLK) begin
   if(cpu_go_en_r) cx4_busy[BUSY_CPU] <= 1'b1;
@@ -514,6 +507,7 @@ reg jp_docache;
 initial jp_docache = 1'b0;
 
 always @(posedge CLK) begin
+  mul_strobe <= 1'b0;
   case(CPU_STATE)
     ST_CPU_IDLE: begin
       if(cpu_go_en_r) begin
@@ -525,7 +519,7 @@ always @(posedge CLK) begin
       end
       else CPU_STATE <= ST_CPU_IDLE;
     end
-    ST_CPU_0: begin // Phase 0: 
+    ST_CPU_0: begin // Phase 0:
       cpu_cache_en <= 1'b0;
       if(op == OP_HLT) begin
         CPU_STATE <= ST_CPU_IDLE;
@@ -552,22 +546,28 @@ always @(posedge CLK) begin
           endcase
         end
         OP_LD, OP_ALU, OP_MUL, OP_CMP, OP_SEX: begin
-          if(op_imm) cpu_idb <= {16'b0, op_param};
-          else casex(op_param)
-            8'h00: cpu_idb <= cpu_a;
-            8'h01: cpu_idb <= cpu_acch;
-            8'h02: cpu_idb <= cpu_accl;
-            8'h03: cpu_idb <= cpu_busdata;
-            8'h08: cpu_idb <= cpu_romdata;
-            8'h0c: cpu_idb <= cpu_ramdata;
-            8'h13: cpu_idb <= cpu_busaddr;
-            8'h1c: cpu_idb <= cpu_ramaddr;
-            8'h5x: cpu_idb <= const[op_param[3:0]];
-            8'h6x: cpu_idb <= {gpr[op_param[3:0]*3+2],
-                               gpr[op_param[3:0]*3+1],
-                               gpr[op_param[3:0]*3]};
-            default: cpu_idb <= 24'b0;
-          endcase
+          if(op == OP_MUL) begin
+            mul_strobe <= 1'b1;
+          end
+          if(op_imm) begin
+            cpu_idb <= {16'b0, op_param};
+          end else begin
+            casex(op_param)
+              8'h00: cpu_idb <= cpu_a;
+              8'h01: cpu_idb <= cpu_mul_result[47:24];
+              8'h02: cpu_idb <= cpu_mul_result[23:0];
+              8'h03: cpu_idb <= cpu_busdata;
+              8'h08: cpu_idb <= cpu_romdata;
+              8'h0c: cpu_idb <= cpu_ramdata;
+              8'h13: cpu_idb <= cpu_busaddr;
+              8'h1c: cpu_idb <= cpu_ramaddr;
+              8'h5x: cpu_idb <= const[op_param[3:0]];
+              8'h6x: cpu_idb <= {gpr[op_param[3:0]*3+2],
+                                 gpr[op_param[3:0]*3+1],
+                                 gpr[op_param[3:0]*3]};
+              default: cpu_idb <= 24'b0;
+            endcase
+          end
         end
         OP_ST: begin
           cpu_idb <= cpu_a;
@@ -576,8 +576,8 @@ always @(posedge CLK) begin
           cpu_idb <= cpu_a;
           casex(op_param)
             8'h00: cpu_tmp <= cpu_a;
-            8'h01: cpu_tmp <= cpu_acch;
-            8'h02: cpu_tmp <= cpu_accl;
+//            8'h01: cpu_tmp <= cpu_acch;
+//            8'h02: cpu_tmp <= cpu_accl;
             8'h03: cpu_tmp <= cpu_busdata;
             8'h08: cpu_tmp <= cpu_romdata;
             8'h0c: cpu_tmp <= cpu_ramdata;
@@ -659,9 +659,9 @@ always @(posedge CLK) begin
           endcase
         end
         OP_ST, OP_SWP: begin
-          casex(op_param)                                    
-            8'h01: cpu_acch <= cpu_idb;
-            8'h02: cpu_accl <= cpu_idb;
+          casex(op_param)
+//            8'h01: cpu_acch <= cpu_idb;
+//            8'h02: cpu_accl <= cpu_idb;
             8'h08: cpu_romdata <= cpu_idb;
             8'h0c: cpu_ramdata <= cpu_idb;
             8'h13: cpu_busaddr <= cpu_idb;
@@ -706,8 +706,8 @@ always @(posedge CLK) begin
             5'b10110: cpu_alu_res <= cpu_sa & cpu_idb;
             5'b10111: cpu_alu_res <= cpu_sa | cpu_idb;
             5'b11000: cpu_alu_res <= cpu_a >> cpu_idb;
-            5'b11001: cpu_alu_res <= ($signed(cpu_a)) >>> cpu_idb;
-            5'b11010: {cpu_dummy, cpu_alu_res[23:0]} <= {cpu_a, cpu_a} >> cpu_idb;
+            5'b11001: cpu_alu_res <= ($signed(cpu_a)) >>> cpu_idb[4:0];
+            5'b11010: cpu_alu_res[23:0] <= {cpu_a, cpu_a} >> cpu_idb[4:0];
             5'b11011: cpu_alu_res <= cpu_a << cpu_idb;
           endcase
         end
@@ -742,37 +742,44 @@ always @(posedge CLK) begin
             end
           endcase
         end
-        OP_MUL: begin
-          cpu_acch <= cpu_mul_result[47:24];
-          cpu_accl <= cpu_mul_result[23:0];
-          fl_z <= (cpu_mul_result == 48'b0);
-          fl_n <= cpu_mul_result[47];
-        end
       endcase
       cpu_op <= cpu_op_w;
-		casex(cpu_op_w[15:11])
-        5'b00x01, 5'b00x10, 5'b00100, 5'b00111: begin
-		    cpu_wait <= 8'h07;
-	       CPU_STATE <= ST_CPU_4;
-		  end
-        5'b01110, 5'b01101, 5'b11101: begin
-		    cpu_wait <= 8'h03;
-	       CPU_STATE <= ST_CPU_4;
-		  end
-        /*5'b10011: begin
-		    cpu_wait <= 8'h02;
-	       CPU_STATE <= ST_CPU_4;
-		  end
-        5'b01000: begin
-		    cpu_wait <= 8'h0e;
-	       CPU_STATE <= ST_CPU_4;
-		  end*/
-		  default: begin
-		    cpu_wait <= 8'h00;
-	       CPU_STATE <= ST_CPU_0;
-		  end
-		endcase
-		
+
+      casex(cpu_op_w[15:11])
+        5'b00100: begin // SKIP
+          cpu_wait <= 8'h01;
+          CPU_STATE <= speed ? ST_CPU_0 : ST_CPU_4;
+        end
+        5'b00111: begin // RT
+          cpu_wait <= 8'h03;
+          CPU_STATE <= speed ? ST_CPU_0 : ST_CPU_4;
+        end
+        5'b00x01, 5'b00x10: begin // JP
+          if(cpu_op_w[13]) begin // CALL
+            cpu_wait <= 8'h03;
+          end else begin
+            cpu_wait <= 8'h03;
+          end
+          CPU_STATE <= speed ? ST_CPU_0 : ST_CPU_4;
+        end
+/*        5'b01110, 5'b01101, 5'b11101: begin // RDROM, RDRAM, WRRAM
+          cpu_wait <= 8'h03;
+          CPU_STATE <= speed ? ST_CPU_0 : ST_CPU_4;
+        end
+/*        5'b10011: begin // MUL
+          cpu_wait <= 8'h03;
+          CPU_STATE <= ST_CPU_4;
+        end*/
+/*        5'b01000: begin // BUSRD
+          cpu_wait <= 8'h03;
+          CPU_STATE <= ST_CPU_4;
+        end*/
+        default: begin
+          cpu_wait <= 8'h00;
+          CPU_STATE <= ST_CPU_0;
+        end
+      endcase
+
       casex(cpu_op_w[15:11])
         5'b00000: op <= OP_NOP;
 
@@ -804,10 +811,10 @@ always @(posedge CLK) begin
         5'b11010: op <= OP_ALU;
         5'b11011: op <= OP_ALU;
         5'b10011: op <= OP_MUL;
-        
+
         5'b00011: op <= OP_WAI;
         5'b01000: op <= OP_BUS;
-        
+
         5'b11111: op <= OP_HLT;
       endcase
       op_imm <= cpu_op_w[10];
@@ -817,10 +824,10 @@ always @(posedge CLK) begin
       op_sa <= cpu_op_w[9:8];
     end
     ST_CPU_4: begin
-	   cpu_wait <= cpu_wait - 1;
-	   if(cpu_wait) CPU_STATE <= ST_CPU_4;
-		else CPU_STATE <= ST_CPU_0;
-	 end
+      cpu_wait <= cpu_wait - 1;
+      if(cpu_wait) CPU_STATE <= ST_CPU_4;
+      else CPU_STATE <= ST_CPU_0;
+    end
   endcase
 end
 
@@ -841,7 +848,7 @@ always @(posedge CLK) begin
     case(BUSRD_STATE)
       ST_BUSRD_IDLE: begin
         if(cpu_bus_rq2) begin
-         BUSRD_STATE <= ST_BUSRD_WAIT;
+          BUSRD_STATE <= ST_BUSRD_WAIT;
         end
       end
       ST_BUSRD_WAIT: begin
@@ -865,7 +872,15 @@ always @(posedge CLK) begin
     gpr[op_param[3:0]*3+1] <= cpu_idb[15:8];
     gpr[op_param[3:0]*3] <= cpu_idb[7:0];
   end
-  else if(GPR_WR_EN) gpr[ADDR[5:0]] <= DIr;
+  else if(GPR_WR_EN) gpr[ADDR[5:0]] <= DI;
+end
+
+// external multiplier
+always @(posedge CLK) begin
+  if(mul_strobe) begin
+    cpu_mul_a <= cpu_a;
+    cpu_mul_b <= cpu_idb;
+  end
 end
 
 /***************************
@@ -873,19 +888,15 @@ end
  ***************************/
 cx4_datrom cx4_datrom (
   .clka(CLK), // input clka
-  .wea(DATROM_WE), // input [0 : 0] wea
-  .addra(DATROM_ADDR), // input [9 : 0] addra
-  .dina(DATROM_DI), // input [23 : 0] dina
-  .clkb(CLK), // input clkb
-  .addrb(cx4_datrom_addr), // input [9 : 0] addrb
-  .doutb(cx4_datrom_do) // output [23 : 0] doutb
+  .addra(cx4_datrom_addr), // input [9 : 0] addrb
+  .douta(cx4_datrom_do) // output [23 : 0] doutb
 );
 
 cx4_datram cx4_datram (
   .clka(CLK), // input clka
   .wea(DATRAM_WR_EN), // input [0 : 0] wea
   .addra(ADDR[11:0]), // input [11 : 0] addra
-  .dina(DIr), // input [7 : 0] dina
+  .dina(DI), // input [7 : 0] dina
   .douta(DATRAM_DO), // output [7 : 0] douta
   .clkb(CLK), // input clkb
   .web(cx4_datram_we), // input [0 : 0] web
@@ -906,8 +917,8 @@ cx4_pgmrom cx4_pgmrom (
 
 cx4_mul cx4_mul (
   .clk(CLK), // input clk
-  .a(cpu_a), // input [23 : 0] a
-  .b(cpu_idb), // input [23 : 0] b
+  .a(cpu_mul_a), // input [23 : 0] a
+  .b(cpu_mul_b), // input [23 : 0] b
   .p(cpu_mul_result) // output [47 : 0] p
 );
 endmodule

@@ -7,15 +7,15 @@
 #include "memory.h"
 #include "sort.h"
 
-/* 
-   heap sort algorithm for data located outside RAM 
+/*
+   heap sort algorithm for data located outside RAM
    addr:     start address of pointer table
    i:        index (in 32-bit elements)
    heapsize: size of heap (in 32-bit elements)
 */
 
 uint32_t stat_getstring = 0;
-static char sort_str1[21], sort_str2[21];
+static char sort_str1[SORT_STRLEN+1], sort_str2[SORT_STRLEN+1];
 uint32_t ptrcache[QSORT_MAXELEM] IN_AHBRAM;
 
 /* get element from pointer table in external RAM*/
@@ -42,12 +42,15 @@ int sort_cmp_elem(const void* elem1, const void* elem2) {
   sort_getstring_for_dirent(sort_str1, el1);
   sort_getstring_for_dirent(sort_str2, el2);
 /*printf("i1=%d i2=%d elem1=%lx elem2=%lx ; compare %s   ---   %s\n", index1, index2, elem1, elem2, sort_str1, sort_str2); */
+  /* parent dir is always the first entry */
+  if (el1 & 0x80000000) return -1;
+  if (el2 & 0x80000000) return 1;
 
-  if ((el1 & 0x80000000) && !(el2 & 0x80000000)) {
+  if ((el1 & 0x40000000) && !(el2 & 0x40000000)) {
     return -1;
   }
 
-  if (!(el1 & 0x80000000) && (el2 & 0x80000000)) {
+  if (!(el1 & 0x40000000) && (el2 & 0x40000000)) {
     return 1;
   }
 
@@ -55,7 +58,7 @@ int sort_cmp_elem(const void* elem1, const void* elem2) {
   if (*sort_str2 == '.') return 1;
 
   /* Do not compare trailing slashes of directory names */
-  if ((el1 & 0x80000000) && (el2 & 0x80000000)) {
+  if ((el1 & 0x40000000) && (el2 & 0x40000000)) {
     char *str1_slash = strrchr(sort_str1, '/');
     char *str2_slash = strrchr(sort_str2, '/');
     if(str1_slash != NULL) *str1_slash = 0;
@@ -67,17 +70,21 @@ int sort_cmp_elem(const void* elem1, const void* elem2) {
 
 /* get truncated string from database */
 void sort_getstring_for_dirent(char *ptr, uint32_t addr) {
+  sram_readstrn(ptr, addr + SRAM_MENU_ADDR + 6, SORT_STRLEN);
+}
+
+/* get truncated string from database */
+void sort_getstring_for_dirent_old(char *ptr, uint32_t addr) {
   uint8_t leaf_offset;
-  if(addr & 0x80000000) {
+  if(addr & 0xc0000000) {
     /* is directory link, name offset 4 */
     leaf_offset = sram_readbyte(addr + 4 + SRAM_MENU_ADDR);
-    sram_readblock(ptr, addr + 5 + leaf_offset + SRAM_MENU_ADDR, 20);
+    sram_readstrn(ptr, addr + 5 + leaf_offset + SRAM_MENU_ADDR, SORT_STRLEN);
   } else {
     /* is file link, name offset 6 */
     leaf_offset = sram_readbyte(addr + 6 + SRAM_MENU_ADDR);
-    sram_readblock(ptr, addr + 7 + leaf_offset + SRAM_MENU_ADDR, 20);
+    sram_readstrn(ptr, addr + 7 + leaf_offset + SRAM_MENU_ADDR, SORT_STRLEN);
   }
-  ptr[20]=0;
 }
 
 void sort_heapify(uint32_t addr, unsigned int i, unsigned int heapsize)
